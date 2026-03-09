@@ -14,6 +14,41 @@ List of some important instrument_keys
 
 '''
 
+# Rate limiting using exact limits
+request_cnt = 0
+start_time_second = time.time()
+start_time_minute = time.time()
+start_time_30min = time.time()
+
+def rate_limit():
+    """Enforce rate limits before making a request"""
+    global request_cnt, start_time_second, start_time_minute, start_time_30min
+    
+    now = time.time()
+    
+    # Check per-second limit (50 requests)
+    if request_cnt % 50 == 0 and request_cnt > 0:
+        elapsed = now - start_time_second
+        if elapsed < 1:
+            time.sleep(1 - elapsed)
+        start_time_second = time.time()
+    
+    # Check per-minute limit (500 requests)
+    if request_cnt % 500 == 0 and request_cnt > 0:
+        elapsed = now - start_time_minute
+        if elapsed < 60:
+            time.sleep(60 - elapsed)
+        start_time_minute = time.time()
+    
+    # Check per-30min limit (2000 requests)
+    if request_cnt % 2000 == 0 and request_cnt > 0:
+        elapsed = now - start_time_30min
+        if elapsed < 1800:
+            time.sleep(1800 - elapsed)
+        start_time_30min = time.time()
+    
+    request_cnt += 1
+
 load_dotenv()
 
 access_token = os.getenv("UPSTOX_ACCESS_TOKEN")
@@ -30,7 +65,7 @@ instruments = {
     
     'NIFTY50': {'instrument_key': 'NSE_INDEX|Nifty 50'},
     'SENSEX30': {'instrument_key': 'BSE_INDEX|SENSEX'},
-    'BANKNIFTY': {'instrument_key': 'NSE_INDEX|Nifty Bank'}
+    # 'BANKNIFTY': {'instrument_key': 'NSE_INDEX|Nifty Bank'}
 
 }
 
@@ -42,6 +77,7 @@ for name, info in instruments.items():
         'instrument_key': info['instrument_key']
     }
 
+    rate_limit()
     response = requests.get(url, params=params, headers=headers)
 
     if response.status_code == 200:
@@ -78,6 +114,7 @@ for name, info in instruments.items():
             'expiry_date' : expiry
         }
 
+        rate_limit()
         response = requests.get(url, params=params, headers=headers)
 
         if response.status_code == 200:
@@ -112,7 +149,7 @@ start_time = time.time()
 global_start = time.time()
 
 success = 0
-already = 0
+already_existing = 0
 
 rate_limited = 0
 
@@ -137,12 +174,14 @@ for contract in contracts:
     filename = os.path.join(output_folder, f"{symbol}.csv")
 
     if os.path.exists(filename):
-        # x += 1
-        # success += 1
-        already += 1
+        already_existing += 1
         continue
 
+    rate_limit()
     response = requests.get(url, headers=headers)
+
+    # print(f"Response Code - {response.status_code}")
+    # print(url, "\n")
 
     if response.status_code == 200:
 
@@ -159,9 +198,13 @@ for contract in contracts:
 
     else:
 
-        print(f"\nError: {response.status_code} - {response.text}")
+        response_code = response.status_code
+        # print(f"\nError: {response_code}")
 
-        if (response.status_code == 429):
+        if response_code == 500:
+            print(f"Expiry - {expiry}\t\t Contract - {contract['trading_symbol']}")
+
+        if (response_code == 429):
 
             # wait 90 seconds before trying again if rate limited
 
@@ -184,14 +227,9 @@ for contract in contracts:
 
         # break
 
-    if (success % 250 == 0):
-        print(f"Fetched {success} contracts so far...")
+    if (success % 250 == 0 and success != 0):
+        print(f"\nFetched {success} contracts so far...")
         time.sleep(2)
-
-    if (success % 5000 == 0):
-        print("Fetched 5000 contracts, exiting...")
-        # time.sleep(60)
-        break
 
     x += 1
 
@@ -201,5 +239,5 @@ total_time = end_time - global_start
 print(f"\nTotal time taken {total_time}.")
 print(f"Average time per contract: {total_time/success if success > 0 else 0:.2f} seconds.")
 
-print(f"\nAlready existing: {already} contracts.")
+print(f"\nAlready existing: {already_existing} contracts.")
 print(f"Successfully fetched data for {success} contracts.")

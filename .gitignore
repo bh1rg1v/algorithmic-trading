@@ -35,3 +35,7 @@ broker/upstox/instruments/complete.json
 /backtesting/ml/
 
 /data/storage/processed/equity/day
+
+/data/storage/raw/options/
+/data/storage/options/
+/backtesting/rv_iv_analysis/results/

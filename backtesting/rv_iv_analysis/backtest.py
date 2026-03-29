@@ -42,19 +42,37 @@ def compute_weighted_price(row):
     return (row['Open'] + row['High'] + row['Low'] + row['Close']) / 4
 
 
-def load_spot_data(spot_path):
+def load_spot_data(spot_path, cache=None):
+    if cache is not None and 'spot_data' in cache:
+        return cache['spot_data']
+    
     df = pd.read_csv(spot_path, parse_dates=['Date'])
     df['DateOnly'] = df['Date'].dt.date
+    
+    if cache is not None:
+        cache['spot_data'] = df
+    
     return df
 
 
-def load_option_file(expiry_folder, strike, option_type):
+def load_option_file(expiry_folder, strike, option_type, cache=None):
+    cache_key = f"{expiry_folder}_{strike}_{option_type}"
+    
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+    
     pattern = f"NIFTY_{strike}_{option_type}_*.csv"
     files = glob(os.path.join(expiry_folder, pattern))
     if not files:
+        if cache is not None:
+            cache[cache_key] = None
         return None
 
     df = pd.read_csv(files[0], parse_dates=['timestamp'])
+    
+    if cache is not None:
+        cache[cache_key] = df
+    
     return df
 
 
@@ -102,11 +120,11 @@ def track_trade(option_df_ce, option_df_pe, entry_time, ce_target, pe_target):
 
 def process_expiry(args):
     """Process a single expiry - designed for multiprocessing"""
-    expiry, i, expiries, config = args
+    expiry, i, expiries, config, cache = args
 
     # print(f"Started processing: {expiry}")
     
-    spot_df = load_spot_data(config['spot_path'])
+    spot_df = load_spot_data(config['spot_path'], cache)
     
     expiry_folder = os.path.join(config['options_path'], expiry)
     expiry_date = datetime.strptime(expiry, "%Y-%m-%d")
@@ -144,8 +162,8 @@ def process_expiry(args):
         ce_strike = round_to_step(ltp * (1 + config['strike_distance_pct']), config['round_strike'])
         pe_strike = round_to_step(ltp * (1 - config['strike_distance_pct']), config['round_strike'])
 
-        ce_df = load_option_file(expiry_folder, ce_strike, "CE")
-        pe_df = load_option_file(expiry_folder, pe_strike, "PE")
+        ce_df = load_option_file(expiry_folder, ce_strike, "CE", cache)
+        pe_df = load_option_file(expiry_folder, pe_strike, "PE", cache)
 
         if ce_df is None or pe_df is None:
             continue
@@ -253,7 +271,7 @@ def process_expiry(args):
 # MAIN ENGINE
 # ==============================
 
-def process_expiries(config):
+def process_expiries(config, cache=None):
 
     start_time = datetime.now()
     start_timestamp = start_time.strftime("%Y%m%d_%H%M%S")
@@ -280,7 +298,7 @@ def process_expiries(config):
     print(f"Processing {len(expiries)} expiries using {config['num_processes']} processes...\n")
     
     # Prepare arguments for multiprocessing
-    args_list = [(expiry, i, expiries, config) for i, expiry in enumerate(expiries)]
+    args_list = [(expiry, i, expiries, config, cache) for i, expiry in enumerate(expiries)]
     
     # Process expiries in parallel
     with Pool(processes=config['num_processes']) as pool:
@@ -421,11 +439,12 @@ def process_expiries(config):
 
 def main():
     from itertools import product
+    from multiprocessing import Manager
     
     # Config arrays for grid testing
     STRIKE_DISTANCE_PCT_ARRAY = [0.0025, 0.00375, 0.005, 0.0075, 0.01]
     MAX_TOTAL_PREMIUM_PCT_ARRAY = [0.0050, 0.0055, 0.0065, 0.0075]
-    TARGET_MULTIPLIER_ARRAY = [1.5, 2, 2.5]
+    TARGET_MULTIPLIER_ARRAY = [1.5, 2, 2.5, 3]
     TRADING_WINDOW_DURATION_MINUTES = 30
     EXPIRY_LIMIT = 10000
     LIMIT_ONE_TRADE_PER_EXPIRY = 0
@@ -460,6 +479,11 @@ def main():
         existing_configs = pd.DataFrame()
     
     print(f"Total combinations to test: {len(combinations)}\n")
+    print("Loading and caching all data files...\n")
+    
+    # Create shared cache using Manager for multiprocessing
+    manager = Manager()
+    cache = manager.dict()
     
     processed_count = 0
     
@@ -472,7 +496,8 @@ def main():
                 (existing_configs['max_total_premium_pct'] == max_premium) &
                 (existing_configs['target_multiplier'] == target_mult) &
                 (existing_configs['window_start'] == win_start) &
-                (existing_configs['window_finish'] == win_finish)
+                (existing_configs['window_finish'] == win_finish) & 
+                (existing_configs['limit_one_trade'] == LIMIT_ONE_TRADE_PER_EXPIRY)
             ).any()
             
             if already_processed:
@@ -486,6 +511,8 @@ def main():
         print(f"Strike Distance: {strike_dist}, Max Premium: {max_premium}, Target: {target_mult}x")
         print(f"Window: {win_start} - {win_finish}")
         print(f"{'='*60}\n")
+        
+        config_start_time = datetime.now()
         
         config = {
             'spot_path': SPOT_DATA_PATH,
@@ -502,7 +529,12 @@ def main():
             'results_base_path': RESULTS_BASE_PATH
         }
         
-        result_metrics = process_expiries(config)
+        result_metrics = process_expiries(config, cache)
+        
+        config_end_time = datetime.now()
+        config_duration = (config_end_time - config_start_time).total_seconds()
+        
+        print(f"\nConfiguration processed in {config_duration:.2f} seconds ({config_duration/60:.2f} minutes)\n")
         
         # Log config and results
         log_entry = {

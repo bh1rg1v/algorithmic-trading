@@ -43,44 +43,105 @@ the above README files contains the details relevant to the respective datasets.
 - **Note**
   - If you found any file to be corrupt, not working or giving some trouble. Please raise an issuse or drop a dm.
   - I am open to collaboration, kindly drop a dm to discuss any of your ideas or my ideas.
-  - The below details are a bit older, I need to update it :)
 
 
 
 ## Repository Architecture
 
 ### **`broker/`** - Broker Integration
-- **`shoonya/`** - Shoonya API implementation (basicfunctions.py, config.py)
+- **`shoonya/`**
+  - `basicfunctions.py` - Core Shoonya API wrapper functions
+  - `config.py` - Shoonya API configuration and authentication
+- **`upstox/`**
+  - `instruments/instruments.py` - Upstox instrument data management
 
 ### **`data/`** - Data Management
-- **`fetchers/`** - Data fetching modules (equity, fundamentals, implied_volatility)
-- **`storage/`** - Data storage with symbol files (BFO, BSE, NFO, NSE) and tokens.csv
-  - **`raw/`** - Raw market data
-  - **`processed/`** - Processed data
-
-### **`projects/`** - Trading Projects
-Individual trading projects and strategies:
-- **`p1-stock-action-classification-markov/`** - Markov chain stock classification
-- **`p2-rv-iv-analysis/`** - Realized vs Implied volatility analysis
-- **`p3-automated-trading-bot/`** - Automated scalping bot
+- **`fetchers/`** - Data fetching modules
+  - **`equity/`**
+    - `hd_equity.py` - Fetch top 2000 stocks OHLCV data from Zerodha API (Apr 2015+)
+  - **`fundamentals/`**
+    - `hd_fundamentals.py` - Scrape fundamental metrics for 2500+ stocks from screener.in
+  - **`implied_volatility/`**
+    - `hd_implied_volatility.py` - Fetch IV data for top 100 stocks from Sensibull API
+  - **`index/`**
+    - `hd_index.py` - Fetch NIFTY & SENSEX spot data from Upstox API (Jan 2022+)
+  - **`options/`**
+    - `hd_options.py` - Fetch index options data from Upstox API (Oct 2024+)
+- **`storage/`** - Data storage with symbol files and tokens
+  - **`raw/`** - Raw market data (equity, options, index)
+    - **`nifty50/`**
+      - `nifty.py` - NIFTY index data processing
+      - `nifty50.py` - NIFTY 50 constituent stocks processing
+      - `nifty50_dailydata.py` - Daily NIFTY 50 data aggregation
+  - **`processed/`** - Processed and cleaned data
 
 ### **`backtesting/`** - Backtesting Modules
-Backtesting implementations for each strategy:
-- **`rv-iv-analysis/`** - Volatility analysis backtests with results
-- **`scalper/`** - Scalper strategy backtests
-- **`stock-action-classification-markov/`** - Markov model backtests
+- **`markov_models/`** - Markov chain stock classification backtests
+  - `backtest_events.py` - Event-based backtesting for Markov models
+  - `markov_model1.py` - Primary Markov model implementation
+  - `run_markov_analysis.py` - Execute Markov analysis backtests
+  - **`ml/`** - Machine learning enhanced Markov models
+    - `bt_ml_gb.py` - Gradient Boosting classifier backtest
+    - `bt_ml_rf.py` - Random Forest classifier backtest
+- **`markov_models_org/`** - Original Markov model implementations (archived)
+- **`previous_version/`** - Legacy backtesting scripts
+  - `backtesting_utility.py` - Utility functions for backtesting
+  - `bt-sharpe-old.py` - Old Sharpe ratio optimization
+  - `bt-sharpe-portfolio.py` - Portfolio-level Sharpe optimization
+  - `bt-sharpe.py` - Current Sharpe ratio backtesting
+  - `bt-trend-following-1.py` - Trend following strategy v1
+  - `bt-trend-following-2.py` - Trend following strategy v2
+  - `bt-trend-following.py` - Main trend following backtest
+  - `BT.py` - Base backtesting framework
+  - `stock_risk_metrics.py` - Calculate stock risk metrics
+- **`rv_iv_analysis/`** - Realized vs Implied volatility analysis
+  - `backtest.py` - Grid search backtest with multiprocessing and caching for RV-IV strategy
+  - `main.py` - Real-time RV-IV analysis scheduler with Telegram alerts
+  - `rv_iv_analysis.py` - Core volatility analysis and percentile calculations
+  - `track_prices.py` - Live price tracking and straddle cost calculation
+  - **`results/`** - Backtest results with config_log.csv tracking all parameter combinations
+- **`scalper/`**
+  - `scalper.py` - Scalping strategy backtest
+- **`volatility/`**
+  - `bt_realized_volatility.py` - Realized volatility backtesting
 
-### **`forward-testing/`** - Forward Testing
-Forward testing modules and results.
+### **`forward_testing/`** - Forward Testing
+- **`markov_models/`** - Forward testing for Markov models
+- **`rv_iv_analysis/`**
+  - `rv_iv_analysis.py` - Live forward testing for RV-IV strategy
 
 ### **`live/`** - Live Trading
-Live trading implementations and configurations.
+Live trading implementations and configurations
+
+### **`projects/`** - Trading Projects
+- **`p1-stock-action-classification-markov/`** - Markov chain stock classification
+- **`p2-rv-iv-analysis/`** - Realized vs Implied volatility analysis
+  - `main.py` - Project main entry point
+  - `rv_iv_analysis.py` - Volatility analysis implementation
+  - `track_prices.py` - Price tracking module
+- **`p3-automated-trading-bot/`** - Automated scalping bot
+  - `scalper.py` - Scalping bot implementation
+
+### **`others/`** - Miscellaneous
+- **`books/`** - Trading and finance reference books
+- **`process_aif_funds_list/`** - AIF (Alternative Investment Funds) data processing
+  - `add_aif_data.py` - Parse and add AIF entries from text to CSV
+  - `extract_state_city.py` - Extract state and capital city from AIF addresses
+  - `aif_list.csv` - AIF funds database
+  - `aif_list_with_location.csv` - AIF data with location columns
 
 ### **`utilities/`** - Utility Scripts
-- **`telegram_bot.py`** - Telegram notification bot
+- `telegram_bot.py` - Telegram notification bot for trade alerts
+
+### **`recyclebin/`** - Archived Data
+Old analysis and historical data files
 
 ### **Root Files**
-- **`requirements.txt`** - Python dependencies
-- **`.env.example`** - Environment variables template
-- **`.gitignore`** - Git ignore rules
-- **`README.md`** - This file
+- `filter.py` - Filter and analyze backtest config_log.csv results by criteria
+- `config_log.csv` - Log of all backtest configurations and results
+- `filtered_configs.csv` - Filtered backtest results meeting specified criteria
+- `requirements.txt` - Python dependencies
+- `.env.example` - Environment variables template
+- `.gitignore` - Git ignore rules
+- `Dockerfile` - Docker container configuration
+- `README.md` - This file

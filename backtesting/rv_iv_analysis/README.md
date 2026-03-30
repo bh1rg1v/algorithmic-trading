@@ -1,3 +1,18 @@
+# Summary
+
+The backtest includes the following phases along with conclusionns
+
+1) NIFTY moves by 1% from the it's spot price every week... it would be either up/down, this happens 90% of the time.
+    - the rv_iv_analysis.py does the work, it helps us to calculate the weekly moves and rank them in percentiles
+    - our goal is to capture that 1% move with long straddles.
+
+2) I have backtested the idea of setting up long straddles on index (NIFTY)
+    - In order to find the opportunities that are cheap (low IV), I have sticked to a defined amount to buy the options.
+    - For a defined configuration (RR, Trade Setup Cost, etc), I have got a result with an avg pnl of 53% on each trade.
+    - Out of 76 expires that are backtested, found 32 trades (16 expires).
+
+The following documentation explains the phase 1 defined above in detail.
+
 # Weekly Volatility Analysis for Options Trading
 
 ## Overview

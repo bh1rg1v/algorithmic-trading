@@ -7,9 +7,10 @@ The backtest includes the following phases along with conclusionns
     - our goal is to capture that 1% move with long straddles.
 
 2) I have backtested the idea of setting up long straddles on index (NIFTY)
-    - In order to find the opportunities that are cheap (low IV), I have sticked to a defined amount to buy the options.
-    - For a defined configuration (RR, Trade Setup Cost, etc), I have got a result with an avg pnl of 53% on each trade.
-    - Out of 76 expires that are backtested, found 32 trades (16 expires).
+    - in order to find the opportunities that are cheap (low IV), I have sticked to a defined amount to buy the options.
+    - for a defined configuration (RR, Trade Setup Cost, etc), I have got a result with an avg pnl of 53% on each trade.
+    - out of 76 expires that are backtested, found 32 trades (16 expires).
+    - the backtest.py helps us to do everything to completely backtest the idea on the historical options data
 
 The following documentation explains the phase 1 defined above in detail.
 

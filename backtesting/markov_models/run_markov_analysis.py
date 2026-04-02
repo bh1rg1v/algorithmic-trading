@@ -43,13 +43,13 @@ def run_markov_analysis():
     start_time = time.time()
     
     # Configuration
-    LIMIT = 250  # Number of files to process
+    LIMIT = 1  # Number of files to process
     MAX_CORES = 16  # Maximum number of CPU cores to use (Available = 20)
     MIN_PROBABILITY = 75.0  # Minimum probability threshold
     MIN_COUNT = 10  # Minimum count threshold
     
     # Setup paths
-    data_dir = r"data\storage\raw\equity\zerodha\2015\day"
+    data_dir = r"data\storage\raw\equity\minute"
     results_dir = r"backtestresults\markov"
     script_name = os.path.splitext(os.path.basename(__file__))[0]
     
@@ -102,14 +102,19 @@ def run_markov_analysis():
         # Combine all individual files into one sorted file
         all_data = []
         for filename, symbol, _ in successful_files:
+
             individual_file = os.path.join(individual_dir, f"markov_{symbol}.csv")
+            
             if os.path.exists(individual_file):
                 df = pd.read_csv(individual_file)
                 all_data.append(df)
         
         if all_data:
+
             combined_df = pd.concat(all_data, ignore_index=True)
+
             combined_df = combined_df[(combined_df['Probability'] >= MIN_PROBABILITY) & (combined_df['Count'] >= MIN_COUNT)]
+
             combined_df = combined_df.sort_values(['Probability', 'Count'], ascending=[False, False]).reset_index(drop=True)
             combined_file = os.path.join(output_dir, "markov_combined_sorted.csv")
             combined_df.to_csv(combined_file, index=False)

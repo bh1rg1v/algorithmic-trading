@@ -22,24 +22,36 @@ def compute_markov_event_probs(df, milestones=[0.5 * x for x in range(0, 9)], ne
     # --- Copy to avoid modifying original
     df = df.copy()
 
+    # print(df.head())
+
     # Previous highs/lows
     df["Prev_High"] = df["High"].shift(1)
     df["Prev_Low"] = df["Low"].shift(1)
 
+    # print()
+    # print(df.head())
+
     # Candle classification
     def classify_candle(o, c):
+
         if o <= 0:  # Avoid division by zero
             return "Last Neutral"
+        
         if abs(c - o) / o < neutral_threshold:
             return "Last Neutral"
+            
         return "Last Green" if c > o else "Last Red"
 
     df["Last_Candle"] = [classify_candle(o, c) for o, c in zip(df["Open"], df["Close"])]
     df["Last_Candle"] = df["Last_Candle"].shift(1)
 
+    print()
+    print(df.head())
+
     # --- Event extraction ---
     records = []
     for i in range(1, len(df)):
+
         row = df.iloc[i]
         prev_high, prev_low = row["Prev_High"], row["Prev_Low"]
 
@@ -62,6 +74,7 @@ def compute_markov_event_probs(df, milestones=[0.5 * x for x in range(0, 9)], ne
 
         # Check milestones
         for j in range(1, len(milestones)-1):
+
             base, nxt = milestones[j], milestones[j+1]
 
             # Skip if reference level is zero or invalid
@@ -83,6 +96,7 @@ def compute_markov_event_probs(df, milestones=[0.5 * x for x in range(0, 9)], ne
 
             if base_reached:
                 event = f"{move_desc} | {broken}, {last_candle}, {base:.1f} Reached"
+                # print("\n", event)
                 outcome = 1 if next_reached else 0
                 records.append((event, outcome))
 
@@ -97,3 +111,8 @@ def compute_markov_event_probs(df, milestones=[0.5 * x for x in range(0, 9)], ne
     summary = summary.sort_values("Probability", ascending=False).reset_index(drop=True)
 
     return summary
+
+if __name__ == "__main__":
+
+    # do nothing
+    pass

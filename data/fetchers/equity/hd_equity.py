@@ -9,12 +9,12 @@ import requests
 # Configuration
 
 # Kite session token - we have update this for every session
-ENCTOKEN = ("FMkxOrpDr0KpdZzRA++sazKhrF14Cbm+1eXHIxShcV0cy0QkCIN0hnvs2wmTMZ/G"
-            "Fsg9hxgK49Lr5jU6Iz2LapZg6dyd5nBMoMvfvuz+9Cqxhp4nt4EJNg==")
+ENCTOKEN = ("4955VhOMfHhiL3WuDFyvMmEaZpBO09zLQLMGAys2wSpz+eFZluGqCs6Abhi"
+            "d2BUOZxc4+Xv+jcUEq1s/fr0u5nchvNxqcloh6ojoBoMmMhVW3sBoWcSiWw==")
 START_DATE = datetime(2015, 4, 1)  # Data start date
-END_DATE = datetime(2025, 3, 31)   # Data end date
-TIMEFRAME = "day"                  # Data timeframe - Available: minute, 5minute, 30minute, 60minute, 3hour, day, etc.
-LIMIT = 2000                       # Max symbols to process
+END_DATE = datetime(2026, 4, 30)   # Data end date
+TIMEFRAME = "minute"                  # Data timeframe - Available: minute, 5minute, 30minute, 60minute, 3hour, day, etc.
+LIMIT = 5                      # Max symbols to process
 
 def fetch_equity_data():
     """Fetch historical equity data from Kite API."""
@@ -40,7 +40,12 @@ def fetch_equity_data():
     header = {"Authorization": f"enctoken {ENCTOKEN}"}
     
     # Create output directory
-    save_path = os.path.join("data/storage/raw/equity/zerodha/", f"{START_DATE.year}-{END_DATE.year}", TIMEFRAME)
+    # save_path = os.path.join("data/storage/raw/equity/zerodha/", f"{START_DATE.year}-{END_DATE.year}", TIMEFRAME)
+
+    local_output = "data/storage/raw/equity/"
+    drive_output = r"G:\My Drive\public\paid\data\equity"
+
+    save_path = os.path.join(drive_output, TIMEFRAME)
     os.makedirs(save_path, exist_ok=True)
     
     # Process each symbol
@@ -57,17 +62,32 @@ def fetch_equity_data():
         symbol = row["SYMBOL"]
         filename = os.path.join(save_path, f"{counter:04d}_{symbol}.csv")
 
-        # Skip if file exists
+        # Check if file exists and get last date
+        file_start_date = START_DATE
         if os.path.exists(filename):
-            print(f"File {filename} already exists. Skipping this symbol.")
-            metrics['skipped_existing'] += 1
-            continue
+            try:
+                existing_df = pd.read_csv(filename)
+                if len(existing_df) > 0:
+                    last_date_str = existing_df.iloc[-1]['Date']
+                    # Parse date (format: 2015-04-01T09:15:00+0530)
+                    last_date = datetime.strptime(last_date_str[:10], '%Y-%m-%d')
+                    file_start_date = last_date + timedelta(days=1)
+                    
+                    if file_start_date > END_DATE:
+                        print(f"File {filename} already up to date. Skipping.")
+                        metrics['skipped_existing'] += 1
+                        continue
+                    
+                    print(f"Updating {filename} from {file_start_date.strftime('%Y-%m-%d')}")
+            except Exception as e:
+                print(f"Error reading existing file {filename}: {e}. Re-fetching from start.")
+                file_start_date = START_DATE
         
         metrics['total_processed'] += 1
 
         # Initialize data collection
         df = pd.DataFrame()
-        start_iter = START_DATE
+        start_iter = file_start_date
 
         # Fetch data in 60-day chunks
         while start_iter <= END_DATE:
@@ -121,11 +141,17 @@ def fetch_equity_data():
             # Move to next period
             start_iter = period_end + timedelta(days=1)
 
-        # Save data if sufficient
-        if len(df) > 10:
-            df.to_csv(filename, index=False)
-            print(f"Saved {filename} with {len(df)} rows, "
-                  f"starting from {df.iloc[0, 0][:10]}")
+        # Save or append data if sufficient
+        if len(df) > 0:
+            if os.path.exists(filename) and file_start_date > START_DATE:
+                # Append to existing file
+                df.to_csv(filename, mode='a', header=False, index=False)
+                print(f"Appended {len(df)} rows to {filename}")
+            else:
+                # Create new file
+                df.to_csv(filename, index=False)
+                print(f"Saved {filename} with {len(df)} rows, "
+                      f"starting from {df.iloc[0, 0][:10]}")
             metrics['successfully_fetched'] += 1
 
             # Batch processing delay
@@ -133,7 +159,8 @@ def fetch_equity_data():
                 print(f"\nFetched {metrics['successfully_fetched']} files, sleeping for 3 seconds...\n")
                 time.sleep(3)
 
-        else:
+        elif file_start_date == START_DATE:
+            # Only log insufficient data for new files
             print(f"Skipping {filename}: Insufficient data, "
                   f"got {len(df)} rows.")
             metrics['insufficient_data'] += 1

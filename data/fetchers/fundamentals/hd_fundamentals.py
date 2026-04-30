@@ -30,6 +30,8 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
     for attempt in range(2):
         response = requests.get(url, headers=headers)
 
+        print(response)
+
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, "html.parser")
             print(f"Page fetched successfully for {symbol}!", end = " ")
@@ -64,6 +66,7 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
     
     all_rows = []
     for table_idx, table in enumerate(tables):
+        
         table_name = table_names[table_idx] if table_idx < len(table_names) else f"TABLE_{table_idx + 1}"
         all_rows.append([table_name, "", "", ""])
         

@@ -113,6 +113,10 @@ def fetch_and_save_iv_data(input_csv, output_folder):
 
 
 if __name__ == "__main__":
-    input_csv = "data/storage/nse_fno_tickers.csv"
-    output_folder = "data/storage/raw/implied-volatility"
+    input_csv = r"data\fetchers\implied_volatility\nse_fno_tickers.csv"
+
+    local_output = "data/storage/raw/implied-volatility"
+    drive_output = r"G:\My Drive\public\paid\data\implied volatility"
+
+    output_folder = drive_output
     fetch_and_save_iv_data(input_csv, output_folder)

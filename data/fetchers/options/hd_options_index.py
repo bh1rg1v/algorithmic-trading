@@ -140,7 +140,10 @@ print()
 x = 0
 limit = 25
 
-base_output_folder = r"data\storage\options\index"
+drive_output = r"G:\My Drive\public\options\index"
+local_output = r"data\storage\options\index"
+
+base_output_folder = drive_output
 
 print(f"Total Contracts: {len(contracts)}")
 print("Started fetching data...\n")

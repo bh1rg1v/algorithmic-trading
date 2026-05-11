@@ -9,12 +9,11 @@ import requests
 # Configuration
 
 # Kite session token - we have update this for every session
-ENCTOKEN = ("4955VhOMfHhiL3WuDFyvMmEaZpBO09zLQLMGAys2wSpz+eFZluGqCs6Abhi"
-            "d2BUOZxc4+Xv+jcUEq1s/fr0u5nchvNxqcloh6ojoBoMmMhVW3sBoWcSiWw==")
+ENCTOKEN = ("2VGUR92sBSdVVgPceh0oBskZbVULNm6ReCUrRIrJpwLtHgtAfBl9mWTjx8y8IM/m1Qur2g1OedjuLFf2hxSnXdCyWJih/EtA12RxB0JBLMD3l9VJkwh37Q==")
 START_DATE = datetime(2015, 4, 1)  # Data start date
-END_DATE = datetime(2026, 4, 30)   # Data end date
+END_DATE = datetime(2026, 5, 30)   # Data end date
 TIMEFRAME = "minute"                  # Data timeframe - Available: minute, 5minute, 30minute, 60minute, 3hour, day, etc.
-LIMIT = 5                      # Max symbols to process
+LIMIT = 2500                      # Max symbols to process
 
 def fetch_equity_data():
     """Fetch historical equity data from Kite API."""
@@ -42,10 +41,10 @@ def fetch_equity_data():
     # Create output directory
     # save_path = os.path.join("data/storage/raw/equity/zerodha/", f"{START_DATE.year}-{END_DATE.year}", TIMEFRAME)
 
-    local_output = "data/storage/raw/equity/"
+    local_output = "data/storage/equity/"
     drive_output = r"G:\My Drive\public\paid\data\equity"
 
-    save_path = os.path.join(drive_output, TIMEFRAME)
+    save_path = os.path.join(local_output, TIMEFRAME)
     os.makedirs(save_path, exist_ok=True)
     
     # Process each symbol
@@ -89,6 +88,8 @@ def fetch_equity_data():
         df = pd.DataFrame()
         start_iter = file_start_date
 
+        rate_limit_retries = 0
+
         # Fetch data in 60-day chunks
         while start_iter <= END_DATE:
             period_end = start_iter + timedelta(days=59)
@@ -114,6 +115,10 @@ def fetch_equity_data():
                 time.sleep(5)
                 df = pd.DataFrame()  # Reset and restart
                 start_iter = START_DATE
+                rate_limit_retries += 1
+                if rate_limit_retries > 3:
+                    print(f"Too many rate limit retries for {symbol}. Skipping.")
+                    break
                 continue
 
             # Handle API errors

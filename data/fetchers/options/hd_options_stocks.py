@@ -53,12 +53,20 @@ def rate_limit():
 
 load_dotenv()
 
+token1 = os.getenv("UPSTOX_TOKEN_1")
+token2 = os.getenv("UPSTOX_TOKEN_2")
+token3 = os.getenv("UPSTOX_TOKEN_3")
+token4 = os.getenv("UPSTOX_TOKEN_4")
+token5 = os.getenv("UPSTOX_TOKEN_5")
+
+ACCESS_TOKENS = [token1, token2, token3, token4, token5]
+
 ACCESS_TOKENS = [
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2OWU1YjQ2MjRiZWJiMzY4YmEwNjk1NTQiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc2NjYxNjAyLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NzY3MjI0MDB9.ZRLi13ca0ph_CiA8ZQK6d_Rxx0DNj_5GOMMBITPRQhM",
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2OWU1YjQ3ZTRiZWJiMzY4YmEwNjk1NWEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc2NjYxNjMwLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NzY3MjI0MDB9.1uO28VMWO734OHNpuZdWwvPsGlGM7EnKpXCAkt0V-PM",
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2OWU1YjQ5NjI2YzhkNjc2YWFmODlmYTAiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc2NjYxNjU0LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NzY3MjI0MDB9.ieCjwLtM_DHIZ_qJAALkWgv7z-hqB4I44MJ50wJHN9Q",
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2OWU1YjRhOTVlZTEyZDdmYTNkYjRmNDciLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc2NjYxNjczLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NzY3MjI0MDB9.9JjtKotLnjYdEyQXj9R2F2etFGhUfDHOjRSsTVhyHdg",
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2OWU1YjRjMzVlZTEyZDdmYTNkYjRmNGMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc2NjYxNjk5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NzY3MjI0MDB9.w9fQd0opCHuG-8WLZzD7aiVar3T4w3y464ZXBtUYhsg"
+    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjNjYmRiNzU0NjZjODE1YzUzZjUiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc1OTc5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.V7Ig3lcSwEIZj-rxg0a1yStFIWXQeN7cyb0uD4u94bg",
+    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjNkZjI5ZDJmYzdmYWUzMGFlZGMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc1OTk5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.fRjL8dh3IqJx_QnVTi5x4UUU00VrCr_cUAcFuqXXlNM",
+    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjNmYTI5ZDJmYzdmYWUzMGFlZTQiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc2MDI2LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.YsTfqua_lkJtWmJXl8JTX5Jsb2gZJmQ7eCtMYBdcKdU",
+    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjQxNGRiNzU0NjZjODE1YzU0MDMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc2MDUyLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.iwdBCpiGJlACNFpq5XkPyd2xyAWBcLo7ijY1DXWTwNI",
+    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjQyNjI5ZDJmYzdmYWUzMGFlZjYiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc2MDcwLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.VsPhkdIuFd54lySM8tZndswzp7PJD5Omrkk4vJCPgZw"
 ]
 
 current_token_index = 0
@@ -202,10 +210,10 @@ print()
 x = 0
 limit = 25
 
-drive_output = r"G:\My Drive\public\options\index"
+drive_output = r"G:\My Drive\public\options\stocks"
 local_output = r"data\storage\options\stocks"
 
-base_output_folder = local_output
+# base_output_folder = local_output
 
 print(f"Total Contracts: {len(contracts)}")
 print("Started fetching data...\n")
@@ -229,14 +237,23 @@ for contract in contracts:
     symbol = contract['trading_symbol'].replace(" ", "_")
     expiry = contract['expiry_date']
 
-    output_folder = os.path.join(base_output_folder, underlying, expiry)
-    os.makedirs(output_folder, exist_ok=True)
+
+
+    local_output_folder = os.path.join(local_output, underlying, expiry)
+    os.makedirs(local_output_folder, exist_ok=True)
+
+    # drive_output_folder = os.path.join(drive_output, underlying, expiry)
+    # os.makedirs(drive_output_folder, exist_ok=True)
+
+
 
     url = f'https://api.upstox.com/v2/expired-instruments/historical-candle/{instrument_key}/{interval}/{to_date}/{from_date}'
 
-    filename = os.path.join(output_folder, f"{symbol}.csv")
+    filename_local = os.path.join(local_output_folder, f"{symbol}.csv")
+    # filename_drive = os.path.join(drive_output_folder, f"{symbol}.csv")
 
-    if os.path.exists(filename):
+    # if os.path.exists(filename_local) and os.path.exists(filename_drive):
+    if os.path.exists(filename_local):
         already_existing += 1
         continue
 
@@ -247,7 +264,8 @@ for contract in contracts:
         data = response.json()
         df = pd.DataFrame(data.get('data', {}).get('candles', []), columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
         df = df.iloc[::-1]
-        df.to_csv(filename, index=False)
+        df.to_csv(filename_local, index=False)
+        # df.to_csv(filename_drive, index=False)
         success += 1
 
     elif response.status_code == 429:
@@ -259,7 +277,8 @@ for contract in contracts:
             data = response.json()
             df = pd.DataFrame(data.get('data', {}).get('candles', []), columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
             df = df.iloc[::-1]
-            df.to_csv(filename, index=False)
+            df.to_csv(filename_local, index=False)
+            # df.to_csv(filename_drive, index=False)
             success += 1
         elif response.status_code == 500:
             print(f"Server error - Expiry: {expiry}, Contract: {contract['trading_symbol']}")

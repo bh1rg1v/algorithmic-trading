@@ -14,6 +14,12 @@ List of some important instrument_keys
 
 '''
 
+# drive_output = r"G:\My Drive\public\options\index"
+local_output = r"data\storage\options\index"
+
+# base_output_folder = drive_output
+base_output_folder = local_output
+
 # Rate limiting using exact limits
 request_cnt = 0
 start_time_second = time.time()
@@ -114,6 +120,19 @@ for name, info in instruments.items():
             'expiry_date' : expiry
         }
 
+        print(f"\tFetching contracts for expiry: {expiry}")
+
+        # skip if the expiry has already been fetched and stored
+
+        folder_path = os.path.join(base_output_folder, name.lower()[:-2], expiry)
+
+        # print(folder_path)
+        # exit()
+
+        if os.path.exists(folder_path) and len(os.listdir(folder_path)) > 0:
+            print(f"\t\tAlready exists, skipping...")
+            continue
+
         rate_limit()
         response = requests.get(url, params=params, headers=headers)
 
@@ -136,14 +155,10 @@ for name, info in instruments.items():
             print(f"Error: {response.status_code} - {response.text}")
 
 print()
+exit()
 
 x = 0
 limit = 25
-
-drive_output = r"G:\My Drive\public\options\index"
-local_output = r"data\storage\options\index"
-
-base_output_folder = drive_output
 
 print(f"Total Contracts: {len(contracts)}")
 print("Started fetching data...\n")

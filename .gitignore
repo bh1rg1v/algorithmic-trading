@@ -43,4 +43,8 @@ broker/upstox/instruments/complete.json
 /data/storage/options.zip
 /backtestresults
 
+/data/storage/fundamentals/
+/data/storage/implied volatility/
+/data/storage/equity/
+
 /recyclebin

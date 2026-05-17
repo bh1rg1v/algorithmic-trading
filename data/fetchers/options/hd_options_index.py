@@ -9,8 +9,13 @@ import time
 
 List of some important instrument_keys
 
-    1) NIFTY50  -   NSE_INDEX|Nifty 50
-    2) SENSEX30 -   BSE_INDEX|SENSEX
+    1) NIFTY50      -   NSE_INDEX|Nifty 50
+    2) SENSEX30     -   BSE_INDEX|SENSEX
+    3) BANKNIFTY    -   NSE_INDEX|Nifty Bank
+    4) FINNIFTY     -   NSE_INDEX|Nifty Fin Service
+    5) MIDCAP50     -   Nifty Midcap 50
+    6) MIDCAP100    -   NIFTY MIDCAP 100
+    7) MIDCAP150    -   NIFTY MIDCAP 150
 
 '''
 
@@ -71,7 +76,9 @@ instruments = {
     
     'NIFTY50': {'instrument_key': 'NSE_INDEX|Nifty 50'},
     'SENSEX30': {'instrument_key': 'BSE_INDEX|SENSEX'},
-    # 'BANKNIFTY': {'instrument_key': 'NSE_INDEX|Nifty Bank'}
+    'BANKNIFTY': {'instrument_key': 'NSE_INDEX|Nifty Bank'},
+    'FINNIFTY ': {'instrument_key': 'NSE_INDEX|Nifty Fin Service'},
+    'MIDCAP50': {'instrument_key': 'Nifty Midcap 50'},
 
 }
 

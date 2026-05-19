@@ -90,6 +90,7 @@ def index_options():
     # copying index options data to drive
 
     base_folder = r"data\storage\options\index"
+    base_folder = r"D:\github\algorithmic-trading\data\storage\options\index"
     output_folder = "G:\\My Drive\\public\\paid\\data\\options\\index"
 
     print("\nCopying index options data to drive...")
@@ -99,7 +100,7 @@ def stock_options():
 
     # copying stock options data to drive
 
-    base_folder = r"data\storage\options\stocks"
+    base_folder = r"D:\github\algorithmic-trading\data\storage\options\stocks"
     output_folder = "G:\\My Drive\\public\\paid\\data\\options\\stocks"
 
     print("\nCopying stock options data to drive...")
@@ -109,7 +110,7 @@ def equity():
 
     # copying equity data to drive
 
-    base_folder = r"data\storage\equity"
+    base_folder = r"D:\github\algorithmic-trading\data\storage\equity"
     output_folder = "G:\\My Drive\\public\\paid\\data\\equity"
 
     print("\nCopying equity data to drive...")
@@ -119,7 +120,7 @@ def fundamentals():
 
     # copying fundamentals data to drive
 
-    base_folder = r"data\storage\fundamentals"
+    base_folder = r"D:\github\algorithmic-trading\data\storage\fundamentals"
     output_folder = "G:\\My Drive\\public\\paid\\data\\fundamentals"
 
     print("\nCopying fundamentals data to drive...")
@@ -129,7 +130,7 @@ def implied_volatility():
 
     # copying implied volatility data to drive
 
-    base_folder = r"data\storage\implied volatility"
+    base_folder = r"D:\github\algorithmic-trading\data\storage\implied volatility"
     output_folder = "G:\\My Drive\\public\\paid\\data\\implied volatility"
 
     print("\nCopying implied volatility data to drive...")
@@ -142,7 +143,7 @@ def main():
     # index_options()
     # stock_options()
     # equity()
-    # fundamentals()
+    fundamentals()
     # implied_volatility()
 
     return

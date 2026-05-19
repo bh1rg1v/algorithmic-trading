@@ -16,11 +16,13 @@ List of some important instrument_keys
     5) MIDCAP50     -   Nifty Midcap 50
     6) MIDCAP100    -   NIFTY MIDCAP 100
     7) MIDCAP150    -   NIFTY MIDCAP 150
+    8) MIDCAPSELECT -   NSE_INDEX|NIFTY MID SELECT
+    9) NIFTYNEXT50  -   NSE_INDEX|Nifty Next 50
 
 '''
 
 # drive_output = r"G:\My Drive\public\options\index"
-local_output = r"data\storage\options\index"
+local_output = r"D:\github\algorithmic-trading\data\storage\options\index"
 
 # base_output_folder = drive_output
 base_output_folder = local_output
@@ -62,15 +64,46 @@ def rate_limit():
 
 load_dotenv()
 
-access_token = os.getenv("UPSTOX_ACCESS_TOKEN")
+token1 = os.getenv("UPSTOX_TOKEN_1")
+token2 = os.getenv("UPSTOX_TOKEN_2")
+token3 = os.getenv("UPSTOX_TOKEN_3")
+token4 = os.getenv("UPSTOX_TOKEN_4")
+token5 = os.getenv("UPSTOX_TOKEN_5")
+
+ACCESS_TOKENS = [token1, token2, token3, token4, token5]
+
+current_token_index = 0
+cycle_start_time = time.time()
+
+def get_headers():
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {ACCESS_TOKENS[current_token_index]}',
+        'Accept': 'application/json'
+    }
+
+def switch_token():
+    global current_token_index, cycle_start_time
+    
+    current_token_index += 1
+    
+    if current_token_index >= len(ACCESS_TOKENS):
+        cycle_end_time = time.time()
+        elapsed = cycle_end_time - cycle_start_time
+        
+        if elapsed < 1800:
+            wait_time = 1800 - elapsed
+            print(f"\nAll {len(ACCESS_TOKENS)} tokens exhausted. Waiting {wait_time:.2f} seconds to complete 30-minute cycle...")
+            time.sleep(wait_time)
+        
+        current_token_index = 0
+        cycle_start_time = time.time()
+        print(f"\nRestarting cycle with Token 1")
+    else:
+        print(f"\nSwitching to Token {current_token_index + 1}/{len(ACCESS_TOKENS)}. Waiting 5 seconds...")
+        time.sleep(5)
 
 url = 'https://api.upstox.com/v2/expired-instruments/expiries'
-
-headers = {
-    'Content-Type': 'application/json',
-    'Authorization': f'Bearer {access_token}',
-    'Accept': 'application/json'
-}
 
 instruments = {
     
@@ -78,7 +111,8 @@ instruments = {
     'SENSEX30': {'instrument_key': 'BSE_INDEX|SENSEX'},
     'BANKNIFTY': {'instrument_key': 'NSE_INDEX|Nifty Bank'},
     'FINNIFTY ': {'instrument_key': 'NSE_INDEX|Nifty Fin Service'},
-    'MIDCAP50': {'instrument_key': 'Nifty Midcap 50'},
+    'MIDCAPSELECT': {'instrument_key': 'NSE_INDEX|NIFTY MID SELECT'},
+    "NIFTYNEXT50": {'instrument_key': 'NSE_INDEX|Nifty Next 50'},
 
 }
 
@@ -91,24 +125,29 @@ for name, info in instruments.items():
     }
 
     rate_limit()
-    response = requests.get(url, params=params, headers=headers)
+    response = requests.get(url, params=params, headers=get_headers())
 
     if response.status_code == 200:
         dates = sorted(response.json().get('data', []))
         instruments[name]['expiry_dates'] = dates
-        # print(json.dumps(response.json(), indent=4))
+
+    elif response.status_code == 429:
+
+        print(f"Rate limited on {name}. Switching token...")
+        switch_token()
+
+        response = requests.get(url, params=params, headers=get_headers())
+
+        if response.status_code == 200:
+            dates = sorted(response.json().get('data', []))
+            instruments[name]['expiry_dates'] = dates
+        else:
+            print(f"Error for {name}: {response.status_code} - {response.text}")
+
     else:
         print(f"Error for {name}: {response.status_code} - {response.text}")
 
 print()
-
-# for name, info in instruments.items():
-#     print(f"\n{name}:")
-#     print(f"Instrument Key: {info['instrument_key']}")
-#     for date in info['expiry_dates']:
-#         # print(f"\tExpiry Date: {date}")
-#         pass
-
 
 url = 'https://api.upstox.com/v2/expired-instruments/option/contract'
 
@@ -133,19 +172,19 @@ for name, info in instruments.items():
 
         folder_path = os.path.join(base_output_folder, name.lower()[:-2], expiry)
 
-        # print(folder_path)
-        # exit()
-
         if os.path.exists(folder_path) and len(os.listdir(folder_path)) > 0:
             print(f"\t\tAlready exists, skipping...")
             continue
 
-        rate_limit()
-        response = requests.get(url, params=params, headers=headers)
+        # rate_limit()
+        response = requests.get(url, params=params, headers=get_headers())
 
         if response.status_code == 200:
+
             data = response.json()
+
             for contract in data.get('data', []):
+
                 contracts.append({
                     'underlying_symbol': contract['underlying_symbol'],
                     'strike_price': contract['strike_price'],
@@ -155,14 +194,33 @@ for name, info in instruments.items():
                     'expired_instrument_key': contract['instrument_key']
                 })
 
-                # for x, y in contracts[-1].items():
-                #     print(f"{x:25} : {y}")
-                # print()
+        elif response.status_code == 429:
+
+            print(f"Rate limited on {name} expiry {expiry}. Switching token...")
+            switch_token()
+
+            response = requests.get(url, params=params, headers=get_headers())
+
+            if response.status_code == 200:
+
+                data = response.json()
+
+                for contract in data.get('data', []):
+
+                    contracts.append({
+                        'underlying_symbol': contract['underlying_symbol'],
+                        'strike_price': contract['strike_price'],
+                        'option_type': contract['instrument_type'],
+                        'expiry_date': contract['expiry'],
+                        'trading_symbol': contract['trading_symbol'],
+                        'expired_instrument_key': contract['instrument_key']
+                    })
+
+            else:
+                print(f"Error: {response.status_code} - {response.text}")
+
         else:
             print(f"Error: {response.status_code} - {response.text}")
-
-print()
-exit()
 
 x = 0
 limit = 25
@@ -202,59 +260,63 @@ for contract in contracts:
         already_existing += 1
         continue
 
-    rate_limit()
-    response = requests.get(url, headers=headers)
-
-    # print(f"Response Code - {response.status_code}")
-    # print(url, "\n")
+    # rate_limit()
+    response = requests.get(url, headers=get_headers())
 
     if response.status_code == 200:
 
         data = response.json()
 
-        df = pd.DataFrame(data.get('data', {}).get('candles', []), columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+        df = pd.DataFrame(
+            data.get('data', {}).get('candles', []),
+            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi']
+        )
 
         df = df.iloc[::-1]
         df.to_csv(filename, index=False)
         
         success += 1
 
-        # print(json.dumps(data, indent=4))
+    elif response.status_code == 429:
+
+        print(f"Rate limited on {symbol}. Switching token...")
+        switch_token()
+
+        response = requests.get(url, headers=get_headers())
+
+        if response.status_code == 200:
+
+            data = response.json()
+
+            df = pd.DataFrame(
+                data.get('data', {}).get('candles', []),
+                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi']
+            )
+
+            df = df.iloc[::-1]
+            df.to_csv(filename, index=False)
+
+            success += 1
+
+        elif response.status_code == 500:
+            print(f"Expiry - {expiry}\t\t Contract - {contract['trading_symbol']}")
+
+        else:
+            print(f"Error {response.status_code} for {symbol}")
 
     else:
 
         response_code = response.status_code
-        # print(f"\nError: {response_code}")
 
         if response_code == 500:
             print(f"Expiry - {expiry}\t\t Contract - {contract['trading_symbol']}")
 
-        if (response_code == 429):
-
-            # wait 90 seconds before trying again if rate limited
-
-            now = time.time()
-            total_time = now - start_time
-            
-            wait_time = ((31 * 60) - total_time)
-
-            rate_limited += 1
-            if rate_limited == 10:
-                print("\nRate limit exceeded 10 times, exiting...")
-                break
-
-            print(f"Fetched {success} contracts data in {total_time} time...")
-            print(f"\nRate limiting, waiting for {wait_time:.2f} seconds...")
-
-            time.sleep(wait_time)
-            start_time = time.time()
-            continue
-
-        # break
+        else:
+            print(f"Error {response_code} for {symbol}")
 
     if (success % 250 == 0 and success != 0):
         print(f"\nFetched {success} contracts so far...")
-        time.sleep(2)
+        # time.sleep(2)
 
     x += 1
 

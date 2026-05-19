@@ -11,6 +11,9 @@ import requests
 from bs4 import BeautifulSoup
 
 
+LIMIT = 5000
+
+
 def clean_filename(name):
     """Convert table name into safe filename."""
 
@@ -22,7 +25,13 @@ def clean_filename(name):
     )
 
 
-def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None):
+def fetch_fundamentals_data(
+    name,
+    symbol,
+    file_number,
+    skip_existing=True,
+    stats=None
+):
     """Fetch fundamentals data from Screener.in."""
 
     if stats is None:
@@ -36,28 +45,47 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
         "data",
         "storage",
         "fundamentals",
-        f"{symbol}"
+        f"{name}"
     )
 
     os.makedirs(output_dir, exist_ok=True)
 
     # ======================================================================
+    # REQUIRED FILES
+    # ======================================================================
+
+    required_files = [
+        "quarterly_results.csv",
+        "profit_and_loss.csv",
+        "balance_sheet.csv",
+        "cash_flows.csv",
+        "ratios.csv",
+        "shareholding_pattern_quarterly.csv",
+        "shareholding_pattern_yearly.csv",
+    ]
+
+    all_files_exist = all(
+        os.path.exists(os.path.join(output_dir, file))
+        for file in required_files
+    )
+
+    # ======================================================================
     # SKIP IF DATA ALREADY EXISTS
     # ======================================================================
 
-    if skip_existing and len(os.listdir(output_dir)) > 0:
+    if skip_existing and all_files_exist:
 
-        # print(f"Skipping {symbol} - data already exists")
+        print(f"Skipping {symbol} - data already exists")
 
         stats["skipped"] = stats.get("skipped", 0) + 1
 
-        return False
+        return True
 
     # ======================================================================
     # FETCH PAGE
     # ======================================================================
 
-    url = f"https://www.screener.in/company/{symbol}/consolidated/"
+    url = f"https://www.screener.in/company/{symbol}/"
 
     headers = {
         "User-Agent": "Mozilla/5.0"
@@ -67,21 +95,28 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
 
     for attempt in range(2):
 
-        response = requests.get(url, headers=headers)
+        print(f"Fetching data for {symbol}...")
 
-        print(response)
+        response = requests.get(
+            url,
+            headers=headers
+        )
 
         if response.status_code == 200:
 
-            soup = BeautifulSoup(response.content, "html.parser")
-
-            print(f"Page fetched successfully for {symbol}!")
+            soup = BeautifulSoup(
+                response.content,
+                "html.parser"
+            )
 
             break
 
         elif response.status_code == 429:
 
-            print(f"Rate limited for {symbol}, waiting 30 seconds...")
+            print(
+                f"Rate limited for {symbol}, "
+                f"waiting 30 seconds..."
+            )
 
             rate_limited = True
 
@@ -92,8 +127,8 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
         else:
 
             print(
-                f"Failed to fetch page for {symbol}:",
-                response.status_code
+                f"Failed to fetch page for "
+                f"{symbol}: {response.status_code}"
             )
 
             stats["failed"] = stats.get("failed", 0) + 1
@@ -114,15 +149,23 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
 
     if rate_limited:
 
-        stats["rate_limited"] = stats.get("rate_limited", 0) + 1
+        stats["rate_limited"] = (
+            stats.get("rate_limited", 0) + 1
+        )
 
     # ======================================================================
     # FIND TABLES
     # ======================================================================
 
-    tables = soup.find_all("table", class_="data-table")
+    tables = soup.find_all(
+        "table",
+        class_="data-table"
+    )
 
-    # Correct mapping based on actual Screener structure
+    # ======================================================================
+    # TABLE NAME MAPPING
+    # ======================================================================
+
     table_names = {
         0: "Quarterly Results",
         1: "Profit & Loss",
@@ -141,12 +184,11 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
 
     for table_idx, table in enumerate(tables):
 
-        print(f"Processing table {table_idx + 1} for {symbol}")
+        # ==================================================================
+        # SKIP UNWANTED TABLES
+        # ==================================================================
 
-        # Skip unwanted tables
         if table_idx not in table_names:
-
-            print(f"Skipping table {table_idx + 1}")
 
             continue
 
@@ -154,7 +196,10 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
 
         filename = clean_filename(table_name) + ".csv"
 
-        filepath = os.path.join(output_dir, filename)
+        filepath = os.path.join(
+            output_dir,
+            filename
+        )
 
         thead = table.find("thead")
         tbody = table.find("tbody")
@@ -183,7 +228,9 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
 
                 cols = [
                     td.text.strip()
-                    for td in row.find_all(["td", "th"])
+                    for td in row.find_all(
+                        ["td", "th"]
+                    )
                 ]
 
                 if cols:
@@ -201,28 +248,56 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
                 [len(row) for row in data_rows]
             )
 
-            # Normalize headers
-            headers_row += [""] * (max_cols - len(headers_row))
+            # ==============================================================
+            # NORMALIZE HEADERS
+            # ==============================================================
 
-            # Normalize rows
+            headers_row += (
+                [""] *
+                (max_cols - len(headers_row))
+            )
+
+            # ==============================================================
+            # NORMALIZE ROWS
+            # ==============================================================
+
             normalized_rows = []
 
             for row in data_rows:
 
-                row += [""] * (max_cols - len(row))
+                row += (
+                    [""] *
+                    (max_cols - len(row))
+                )
 
                 normalized_rows.append(row)
+
+            # ==============================================================
+            # CREATE DATAFRAME
+            # ==============================================================
 
             df = pd.DataFrame(
                 normalized_rows,
                 columns=headers_row
             )
 
-            df.to_csv(filepath, index=False)
+            # ==============================================================
+            # SAVE CSV
+            # ==============================================================
 
-            print(f"Saved: {filepath}")
+            df.to_csv(
+                filepath,
+                index=False
+            )
 
             saved_files += 1
+
+        else:
+
+            print(
+                f"No data found in "
+                f"{table_name}"
+            )
 
     # ======================================================================
     # FINAL STATUS
@@ -230,19 +305,23 @@ def fetch_fundamentals_data(symbol, file_number, skip_existing=True, stats=None)
 
     if saved_files > 0:
 
-        stats["fetched"] = stats.get("fetched", 0) + 1
-
-        print(f"Saved {saved_files} tables for {symbol}")
+        stats["fetched"] = (
+            stats.get("fetched", 0) + 1
+        )
 
         return True
 
-    stats["failed"] = stats.get("failed", 0) + 1
+    stats["failed"] = (
+        stats.get("failed", 0) + 1
+    )
+
+    print(f"FAILED: No tables saved for {symbol}")
 
     return False
 
 
-def fetch_new_data():
-    """Fetch data skipping existing files."""
+def fetch_data(skip_existing=True):
+    """Fetch fundamentals data."""
 
     tokens_path = os.path.join(
         "data",
@@ -259,40 +338,171 @@ def fetch_new_data():
 
     try:
 
+        # ==================================================================
+        # READ TOKENS CSV
+        # ==================================================================
+
         tokens_df = pd.read_csv(tokens_path)
 
-        symbols = tokens_df["SYMBOL"].dropna().unique()
+        # ==================================================================
+        # CREATE SYMBOL -> SHOONYA TOKEN MAP
+        # ==================================================================
+
+        tickers = dict(
+            zip(
+                tokens_df["SYMBOL"]
+                .astype(str)
+                .str.strip(),
+
+                tokens_df["SHOONYA_TOKEN"]
+                .astype(str)
+                .str.strip()
+            )
+        )
+
+        # ==================================================================
+        # GET SYMBOLS
+        # ==================================================================
+
+        symbols = (
+            tokens_df["SYMBOL"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .unique()
+        )
+
+        symbols = symbols[:LIMIT]
+
+        total_symbols = len(symbols)
+
+        # ==================================================================
+        # PROCESS SYMBOLS
+        # ==================================================================
 
         for idx, symbol in enumerate(symbols, 1):
 
-            fetch_fundamentals_data(
-                symbol.strip(),
+            # ==============================================================
+            # STOCK SEPARATOR
+            # ==============================================================
+
+            print("\n" + "=" * 100)
+
+            print(
+                f"[{idx}/{total_symbols}] "
+                f"Processing {symbol}"
+            )
+
+            print("=" * 100)
+
+            # ==============================================================
+            # FIRST ATTEMPT USING SYMBOL
+            # ==============================================================
+
+            isFetched = fetch_fundamentals_data(
+                symbol,
+                symbol,
                 idx,
-                skip_existing=True,
+                skip_existing=skip_existing,
                 stats=stats,
             )
 
-            # Delay every 10 successful fetches
-            if stats["fetched"] % 10 == 0 and stats["fetched"] > 0:
+            # ==============================================================
+            # RETRY USING SHOONYA TOKEN
+            # ==============================================================
+
+            if not isFetched:
+
+                ticker_id = tickers.get(symbol)
+
+                if ticker_id:
+
+                    print(
+                        f"[RETRY] "
+                        f"{symbol} -> {ticker_id}"
+                    )
+
+                    new = fetch_fundamentals_data(
+                        symbol,
+                        ticker_id,
+                        idx,
+                        skip_existing=skip_existing,
+                        stats=stats
+                    )
+
+                    isFetched = isFetched or new
+
+                else:
+
+                    print(
+                        f"[ERROR] "
+                        f"No ticker ID "
+                        f"available for {symbol}"
+                    )
+
+            # ==============================================================
+            # STATUS
+            # ==============================================================
+
+            if isFetched:
+
+                print(f"[SUCCESS] {symbol}")
+
+            else:
+
+                print(f"[FAILED] {symbol}")
+
+            # ==============================================================
+            # DELAY
+            # ==============================================================
+
+            if (
+                stats["fetched"] % 10 == 0 and
+                stats["fetched"] > 0
+            ):
 
                 print(
-                    f"Fetched {stats['fetched']} companies, "
-                    f"waiting 3 seconds..."
+                    f"\nFetched "
+                    f"{stats['fetched']} companies, "
+                    f"waiting 0 second..."
                 )
 
-                time.sleep(3)
+                time.sleep(0)
 
         # ==================================================================
         # SUMMARY
         # ==================================================================
 
-        print("\n=== SUMMARY ===")
+        print("\n" + "=" * 100)
 
-        print(f"Total symbols processed: {len(symbols)}")
-        print(f"Files fetched: {stats['fetched']}")
-        print(f"Files skipped: {stats['skipped']}")
-        print(f"Rate limited: {stats['rate_limited']}")
-        print(f"Failed to fetch: {stats['failed']}")
+        print("SUMMARY")
+
+        print("=" * 100)
+
+        print(
+            f"Total symbols processed: "
+            f"{len(symbols)}"
+        )
+
+        print(
+            f"Files fetched: "
+            f"{stats['fetched']}"
+        )
+
+        print(
+            f"Files skipped: "
+            f"{stats['skipped']}"
+        )
+
+        print(
+            f"Rate limited: "
+            f"{stats['rate_limited']}"
+        )
+
+        print(
+            f"Failed to fetch: "
+            f"{stats['failed']}"
+        )
 
     except FileNotFoundError:
 
@@ -300,69 +510,10 @@ def fetch_new_data():
 
     except KeyError:
 
-        print("Column 'SYMBOL' not found in tokens.csv")
-
-
-def update_all_data():
-    """Fetch all data including existing files."""
-
-    tokens_path = os.path.join(
-        "data",
-        "storage",
-        "tokens.csv"
-    )
-
-    stats = {
-        "fetched": 0,
-        "skipped": 0,
-        "rate_limited": 0,
-        "failed": 0,
-    }
-
-    try:
-
-        tokens_df = pd.read_csv(tokens_path)
-
-        symbols = tokens_df["SYMBOL"].dropna().unique()
-
-        for idx, symbol in enumerate(symbols, 1):
-
-            fetch_fundamentals_data(
-                symbol.strip(),
-                idx,
-                skip_existing=False,
-                stats=stats,
-            )
-
-            # Delay every 10 successful fetches
-            if stats["fetched"] % 10 == 0 and stats["fetched"] > 0:
-
-                print(
-                    f"Fetched {stats['fetched']} companies, "
-                    f"waiting 5 seconds..."
-                )
-
-                time.sleep(5)
-
-        # ==================================================================
-        # SUMMARY
-        # ==================================================================
-
-        print("\n=== SUMMARY ===")
-
-        print(f"Total symbols processed: {len(symbols)}")
-        print(f"Files fetched: {stats['fetched']}")
-        print(f"Files skipped: {stats['skipped']}")
-        print(f"Rate limited: {stats['rate_limited']}")
-        print(f"Failed to fetch: {stats['failed']}")
-
-    except FileNotFoundError:
-
-        print(f"File not found: {tokens_path}")
-
-    except KeyError:
-
-        print("Column 'SYMBOL' not found in tokens.csv")
+        print(
+            "Column 'SYMBOL' "
+            "not found in tokens.csv"
+        )
 
 
 def main():
@@ -372,25 +523,30 @@ def main():
     print("1. Fetch new data (skip existing files)")
     print("2. Update all data (fetch everything)")
 
-    choice = input("Enter your choice (1 or 2): ").strip()
+    choice = input(
+        "Enter your choice (1 or 2): "
+    ).strip()
 
     while True:
 
         if choice == "1":
 
-            fetch_new_data()
+            fetch_data(skip_existing=True)
 
             break
 
         elif choice == "2":
 
-            update_all_data()
+            fetch_data(skip_existing=False)
 
             break
 
         else:
 
-            print("Invalid choice. Please select 1 or 2.")
+            print(
+                "Invalid choice. "
+                "Please select 1 or 2."
+            )
 
 
 if __name__ == "__main__":

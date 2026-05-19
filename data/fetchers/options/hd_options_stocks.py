@@ -61,14 +61,6 @@ token5 = os.getenv("UPSTOX_TOKEN_5")
 
 ACCESS_TOKENS = [token1, token2, token3, token4, token5]
 
-ACCESS_TOKENS = [
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjNjYmRiNzU0NjZjODE1YzUzZjUiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc1OTc5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.V7Ig3lcSwEIZj-rxg0a1yStFIWXQeN7cyb0uD4u94bg",
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjNkZjI5ZDJmYzdmYWUzMGFlZGMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc1OTk5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.fRjL8dh3IqJx_QnVTi5x4UUU00VrCr_cUAcFuqXXlNM",
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjNmYTI5ZDJmYzdmYWUzMGFlZTQiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc2MDI2LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.YsTfqua_lkJtWmJXl8JTX5Jsb2gZJmQ7eCtMYBdcKdU",
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjQxNGRiNzU0NjZjODE1YzU0MDMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc2MDUyLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.iwdBCpiGJlACNFpq5XkPyd2xyAWBcLo7ijY1DXWTwNI",
-    "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1NUNWWE0iLCJqdGkiOiI2YTAxNjQyNjI5ZDJmYzdmYWUzMGFlZjYiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc4NDc2MDcwLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3Nzg1MzY4MDB9.VsPhkdIuFd54lySM8tZndswzp7PJD5Omrkk4vJCPgZw"
-]
-
 current_token_index = 0
 cycle_start_time = time.time()
 
@@ -236,8 +228,6 @@ for contract in contracts:
     underlying = contract['underlying_symbol']
     symbol = contract['trading_symbol'].replace(" ", "_")
     expiry = contract['expiry_date']
-
-
 
     local_output_folder = os.path.join(local_output, underlying, expiry)
     os.makedirs(local_output_folder, exist_ok=True)

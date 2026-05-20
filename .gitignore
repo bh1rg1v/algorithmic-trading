@@ -47,4 +47,6 @@ broker/upstox/instruments/complete.json
 /data/storage/implied volatility/
 /data/storage/equity/
 
+/data/reselling/
+
 /recyclebin

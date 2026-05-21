@@ -48,5 +48,7 @@ broker/upstox/instruments/complete.json
 /data/storage/equity/
 
 /data/reselling/
+/data/reconstruct/tradecharter
+/data/reconstructed/
 
 /recyclebin

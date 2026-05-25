@@ -13,7 +13,7 @@ ENCTOKEN = ("9XRY1msPyifGFlJHlcWFGzjtyYNYi/NVnjHii/8lHx2uCbP5J+aN9oK1+cqEoYujy5m
 START_DATE = datetime(2015, 4, 1)  # Data start date
 END_DATE = datetime(2026, 5, 30)   # Data end date
 TIMEFRAME = "minute"                  # Data timeframe - Available: minute, 5minute, 30minute, 60minute, 3hour, day, etc.
-LIMIT = 2500                      # Max symbols to process
+LIMIT = 5000                     # Max symbols to process
 
 def fetch_equity_data():
     """Fetch historical equity data from Kite API."""

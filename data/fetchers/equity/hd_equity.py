@@ -9,7 +9,7 @@ import requests
 # Configuration
 
 # Kite session token - we have update this for every session
-ENCTOKEN = ("2VGUR92sBSdVVgPceh0oBskZbVULNm6ReCUrRIrJpwLtHgtAfBl9mWTjx8y8IM/m1Qur2g1OedjuLFf2hxSnXdCyWJih/EtA12RxB0JBLMD3l9VJkwh37Q==")
+ENCTOKEN = ("9XRY1msPyifGFlJHlcWFGzjtyYNYi/NVnjHii/8lHx2uCbP5J+aN9oK1+cqEoYujy5mlaU4aSbTO1r9/Hl8usDZNNsf0/yeQr3s+OTcJ8kEljEJioWFVQg==")
 START_DATE = datetime(2015, 4, 1)  # Data start date
 END_DATE = datetime(2026, 5, 30)   # Data end date
 TIMEFRAME = "minute"                  # Data timeframe - Available: minute, 5minute, 30minute, 60minute, 3hour, day, etc.
@@ -33,6 +33,9 @@ def fetch_equity_data():
     # Load symbols from CSV
     equity_df = pd.read_csv(os.path.join("data", "storage", "tokens.csv"))
     equity_df = equity_df.dropna(subset=["KITE_ID"])
+
+    # to get data for INDIAVIX, added the symbol with kite id in the csv
+    equity_df = equity_df.tail(1)
     
     # Setup session and authentication
     session = requests.session()

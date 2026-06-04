@@ -7,13 +7,13 @@ from collections import defaultdict
 # CONFIG
 # ============================================================
 
-INPUT_ROOT = r"D:\github\datasets\kaggle\archive - nifty & banknifty 2020 - 2024 options data\nifty_data\nifty_options"
+INPUT_ROOT = r"D:\github\datasets\kaggle\archive - nifty & banknifty 2020 - 2024 options data\banknifty_data\banknifty_options"
 
-OUTPUT_ROOT = r"D:\github\algorithmic-trading\data\reconstructed\nifty\kaggle"
+OUTPUT_ROOT = r"D:\github\algorithmic-trading\data\reconstructed\banknifty\kaggle"
 
 # LIMIT NUMBER OF FILES
 START = 0
-LIMIT = 252
+LIMIT = 100000000000
 
 os.makedirs(OUTPUT_ROOT, exist_ok=True)
 
@@ -42,7 +42,9 @@ MONTH_MAP = {
 
 def parse_symbol(symbol):
 
-    pattern = r"^NIFTY(\d{2})([A-Z]{3})(\d{2})(\d+)(CE|PE)$"
+    # pattern = r"^NIFTY(\d{2})([A-Z]{3})(\d{2})(\d+)(CE|PE)$"
+
+    pattern = r"^BANKNIFTY(\d{2})([A-Z]{3})(\d{2})(\d+)(CE|PE)$"
 
     match = re.match(pattern, symbol)
 
@@ -82,7 +84,7 @@ def get_expiry_folder(parsed):
 def generate_output_filename(parsed):
 
     return (
-        f"NIFTY_"
+        f"BANKNIFTY_"
         f"{parsed['strike']}_"
         f"{parsed['option_type']}_"
         f"{parsed['expiry_day']}_"
@@ -132,13 +134,16 @@ contract_data = defaultdict(list)
 
 for idx, file_path in enumerate(all_csv_files, 1):
 
-    print(f"\n[PROCESSING FILE {idx}/{len(all_csv_files)}] {os.path.basename(file_path)}")
+    print(
+        f"\n[PROCESSING FILE {idx}/{len(all_csv_files)}] "
+        f"{os.path.basename(file_path)}"
+    )
 
     try:
 
         df = pd.read_csv(file_path)
 
-        print(f"Rows: {len(df)}")
+        # print(f"Rows: {len(df)}")
 
     except Exception as e:
 
@@ -178,32 +183,36 @@ for idx, file_path in enumerate(all_csv_files, 1):
     # CLEAN DATE/TIME
     # ========================================================
 
-    df["date"] = df["date"].astype(str).str.strip()
-    df["time"] = df["time"].astype(str).str.strip()
+    df["date"] = (
+        df["date"]
+        .astype(str)
+        .str.strip()
+    )
+
+    df["time"] = (
+        df["time"]
+        .astype(str)
+        .str.strip()
+    )
 
     # ========================================================
-    # CREATE TIMESTAMP
+    # NORMALIZE DATE FORMAT
     # ========================================================
 
-    df["timestamp"] = pd.to_datetime(
-        df["date"] + " " + df["time"],
-        dayfirst=True,
+    df["date_obj"] = pd.to_datetime(
+        df["date"],
         errors="coerce"
     )
 
-    invalid_timestamp_count = df["timestamp"].isna().sum()
+    invalid_dates = df["date_obj"].isna().sum()
 
-    if invalid_timestamp_count > 0:
+    if invalid_dates > 0:
 
-        print(f"Invalid timestamps: {invalid_timestamp_count}")
+        print(f"Invalid dates: {invalid_dates}")
 
-    # ========================================================
-    # REMOVE INVALID TIMESTAMPS
-    # ========================================================
+    df = df[df["date_obj"].notna()]
 
-    df = df[df["timestamp"].notna()]
-
-    print(f"Valid rows: {len(df)}")
+    # print(f"Valid rows: {len(df)}")
 
     if len(df) == 0:
 
@@ -211,22 +220,28 @@ for idx, file_path in enumerate(all_csv_files, 1):
         continue
 
     # ========================================================
-    # LOCALIZE TIMEZONE
+    # NORMALIZE DATE + TIME
     # ========================================================
 
-    try:
+    df["date"] = (
+        df["date_obj"]
+        .dt.strftime("%d-%m-%Y")
+    )
 
-        df["timestamp"] = (
-            df["timestamp"]
-            .dt.tz_localize("Asia/Kolkata")
+    df["time"] = (
+        pd.to_datetime(
+            df["time"],
+            format="%H:%M:%S",
+            errors="coerce"
         )
+        .dt.strftime("%H:%M")
+    )
 
-    except Exception as e:
+    # ========================================================
+    # REMOVE INVALID TIMES
+    # ========================================================
 
-        print("TIMEZONE FAILED")
-        print(e)
-
-        continue
+    df = df[df["time"].notna()]
 
     # ========================================================
     # GROUP SYMBOLS
@@ -249,11 +264,10 @@ for idx, file_path in enumerate(all_csv_files, 1):
 
         output_file = generate_output_filename(parsed)
 
-        # print(f"{symbol_count}. {symbol} ({len(sdf)} rows)")
-
         temp_df = sdf[
             [
-                "timestamp",
+                "date",
+                "time",
                 "open",
                 "high",
                 "low",
@@ -263,9 +277,11 @@ for idx, file_path in enumerate(all_csv_files, 1):
             ]
         ].copy()
 
-        contract_data[(expiry_folder, output_file)].append(temp_df)
+        contract_data[
+            (expiry_folder, output_file)
+        ].append(temp_df)
 
-    print(f"Symbols: {symbol_count}")
+    # print(f"Symbols: {symbol_count}")
 
 # ============================================================
 # SAVE FILES
@@ -282,7 +298,10 @@ if total_contracts == 0:
     print("NO CONTRACT DATA FOUND")
     exit()
 
-for idx, ((expiry_folder, output_file), dfs) in enumerate(contract_data.items(), 1):
+for idx, (
+    (expiry_folder, output_file),
+    dfs
+) in enumerate(contract_data.items(), 1):
 
     print(f"\n[SAVE {idx}/{total_contracts}] {output_file}")
 
@@ -292,15 +311,37 @@ for idx, ((expiry_folder, output_file), dfs) in enumerate(contract_data.items(),
         # MERGE
         # ====================================================
 
-        final_df = pd.concat(dfs, ignore_index=True)
+        final_df = pd.concat(
+            dfs,
+            ignore_index=True
+        )
 
-        # print(f"Rows: {len(final_df)}")
+        # ====================================================
+        # CREATE SORT COLUMNS
+        # ====================================================
+
+        final_df["date_sort"] = pd.to_datetime(
+            final_df["date"],
+            format="%d-%m-%Y",
+            errors="coerce"
+        )
+
+        final_df["time_sort"] = pd.to_datetime(
+            final_df["time"],
+            format="%H:%M",
+            errors="coerce"
+        )
 
         # ====================================================
         # SORT
         # ====================================================
 
-        final_df = final_df.sort_values("timestamp")
+        final_df = final_df.sort_values(
+            by=[
+                "date_sort",
+                "time_sort"
+            ]
+        )
 
         # ====================================================
         # REMOVE DUPLICATES
@@ -318,40 +359,23 @@ for idx, ((expiry_folder, output_file), dfs) in enumerate(contract_data.items(),
 
         if duplicates_removed > 0:
 
-            print(f"Duplicates removed: {duplicates_removed}")
+            print(
+                f"Duplicates removed: "
+                f"{duplicates_removed}"
+            )
 
         # print(f"Final rows: {after_duplicates}")
 
         # ====================================================
-        # SPLIT TIMESTAMP
+        # REMOVE SORT COLUMNS
         # ====================================================
 
-        final_df["date"] = (
-            final_df["timestamp"]
-            .dt.strftime("%d-%m-%Y")
-        )
-
-        final_df["time"] = (
-            final_df["timestamp"]
-            .dt.strftime("%H:%M")
-        )
-
-        # ====================================================
-        # KEEP REQUIRED COLUMNS
-        # ====================================================
-
-        final_df = final_df[
-            [
-                "date",
-                "time",
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume",
-                "oi",
+        final_df = final_df.drop(
+            columns=[
+                "date_sort",
+                "time_sort"
             ]
-        ]
+        )
 
         # ====================================================
         # OUTPUT FOLDER
@@ -362,7 +386,10 @@ for idx, ((expiry_folder, output_file), dfs) in enumerate(contract_data.items(),
             expiry_folder
         )
 
-        os.makedirs(expiry_output_path, exist_ok=True)
+        os.makedirs(
+            expiry_output_path,
+            exist_ok=True
+        )
 
         # ====================================================
         # OUTPUT PATH
@@ -381,22 +408,6 @@ for idx, ((expiry_folder, output_file), dfs) in enumerate(contract_data.items(),
             output_path,
             index=False
         )
-
-        # print("Saved")
-
-        # ====================================================
-        # VERIFY
-        # ====================================================
-
-        if os.path.exists(output_path):
-
-            saved_df = pd.read_csv(output_path)
-
-            # print(f"Verified: {len(saved_df)} rows")
-
-        else:
-
-            print("FILE NOT FOUND")
 
     except Exception as e:
 

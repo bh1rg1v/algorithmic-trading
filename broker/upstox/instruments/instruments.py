@@ -97,4 +97,11 @@ df_filtered = df_filtered.dropna(axis=1, how='all')
 path = os.path.join(output_folder, "equity.csv")
 df_filtered.to_csv(path, index=False)
 
+# Filtering and create a seperate csv for mcx instruments
+
+df_filtered = df[df['exchange'] == 'MCX']
+df_filtered = df_filtered.dropna(axis=1, how='all')
+path = os.path.join(output_folder, "mcx.csv")
+df_filtered.to_csv(path, index=False)
+
 # Write code for downloading or filtering the suspended instruments.

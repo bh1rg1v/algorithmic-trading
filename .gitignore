@@ -52,3 +52,6 @@ broker/upstox/instruments/complete.json
 /data/reconstructed/
 
 /recyclebin
+
+data/storage/2014-2024
+data/storage/index

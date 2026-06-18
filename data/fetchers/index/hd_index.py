@@ -19,7 +19,7 @@ interval = "minutes"
 unit = "1"
 
 to_date = datetime.today()
-from_date = datetime.strptime("2022-01-01", "%Y-%m-%d")
+from_date = datetime.strptime("2015-01-01", "%Y-%m-%d")
 
 access_token = os.getenv("UPSTOX_ACCESS_TOKEN")
 

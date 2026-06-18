@@ -9,8 +9,8 @@ import requests
 # Configuration
 
 # Kite session token - we have update this for every session
-ENCTOKEN = ("9XRY1msPyifGFlJHlcWFGzjtyYNYi/NVnjHii/8lHx2uCbP5J+aN9oK1+cqEoYujy5mlaU4aSbTO1r9/Hl8usDZNNsf0/yeQr3s+OTcJ8kEljEJioWFVQg==")
-START_DATE = datetime(2015, 4, 1)  # Data start date
+ENCTOKEN = ("SWJBKkxoUp4qwjkz0fnMzDqndXtxmqYhjRoehBq4999QVl78Xg1bu3tyd9AbrgzVLsAUNUdiN4t+DZaR8mhhET0xPM+N76vTo3Jct5GylTkPBmTXDDOTUA==")
+START_DATE = datetime(2014, 1, 1)  # Data start date
 END_DATE = datetime(2026, 5, 30)   # Data end date
 TIMEFRAME = "minute"                  # Data timeframe - Available: minute, 5minute, 30minute, 60minute, 3hour, day, etc.
 LIMIT = 5000                     # Max symbols to process

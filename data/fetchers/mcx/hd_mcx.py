@@ -9,23 +9,10 @@ import time
 
 List of some important instrument_keys
 
-    1) NIFTY50      -   NSE_INDEX|Nifty 50
-    2) SENSEX30     -   BSE_INDEX|SENSEX
-    3) BANKNIFTY    -   NSE_INDEX|Nifty Bank
-    4) FINNIFTY     -   NSE_INDEX|Nifty Fin Service
-    5) MIDCAP50     -   Nifty Midcap 50
-    6) MIDCAP100    -   NIFTY MIDCAP 100
-    7) MIDCAP150    -   NIFTY MIDCAP 150
-    8) MIDCAPSELECT -   NSE_INDEX|NIFTY MID SELECT
-    9) NIFTYNEXT50  -   NSE_INDEX|Nifty Next 50
+    1) NIFTY50  -   NSE_INDEX|Nifty 50
+    2) SENSEX30 -   BSE_INDEX|SENSEX
 
 '''
-
-# drive_output = r"G:\My Drive\public\options\index"
-local_output = r"D:\github\algorithmic-trading\data\storage\options\index"
-
-# base_output_folder = drive_output
-base_output_folder = local_output
 
 # Rate limiting using exact limits
 request_cnt = 0
@@ -43,7 +30,9 @@ def rate_limit():
     if request_cnt % 50 == 0 and request_cnt > 0:
         elapsed = now - start_time_second
         if elapsed < 1:
-            time.sleep(1 - elapsed)
+            x = 1 - elapsed
+            print(f"Waiting {x} seconds here...")
+            time.sleep(x)
         start_time_second = time.time()
     
     # Check per-minute limit (500 requests)
@@ -105,18 +94,38 @@ def switch_token():
 
 url = 'https://api.upstox.com/v2/expired-instruments/expiries'
 
-instruments = {
-    
-    'NIFTY50': {'instrument_key': 'NSE_INDEX|Nifty 50'},
-    # 'SENSEX30': {'instrument_key': 'BSE_INDEX|SENSEX'},
-    # 'BANKNIFTY': {'instrument_key': 'NSE_INDEX|Nifty Bank'},
-    # 'FINNIFTY ': {'instrument_key': 'NSE_INDEX|Nifty Fin Service'},
-    # 'MIDCAPSELECT': {'instrument_key': 'NSE_INDEX|NIFTY MID SELECT'},
-    # "NIFTYNEXT50": {'instrument_key': 'NSE_INDEX|Nifty Next 50'},
+keys = pd.read_csv(r"broker\upstox\instruments\mcx.csv")
 
+keys = keys[~(keys["asset_key"].str.contains("INDEX"))][["name", "asset_key"]]
+keys = keys.drop_duplicates(subset="name")
+
+# keys = keys[-20:]
+
+keys = keys.set_index("name")["asset_key"].to_dict()
+
+MCX_SYMBOLS = ["NATURALGAS", "ZINC", "SILVER", "GOLD", "CRUDE OIL", "COPPER"]
+
+# for key in keys:
+#     print(key)
+
+# print(len(keys))
+
+# exit()
+
+instruments = {
+    name: {"instrument_key": asset_key}
+    for name, asset_key in keys.items() if name in MCX_SYMBOLS
 }
 
+error = 0
+
+# 5-Jan-26
+
+instruments["GOLD"]["expiry_dates"] = ["2026-01-05"]
+
 for name, info in instruments.items():
+
+    # if name not in MCX_SYMBOLS: continue
 
     print(f"Fetching expiries for: {name}")
 
@@ -124,41 +133,49 @@ for name, info in instruments.items():
         'instrument_key': info['instrument_key']
     }
 
-    rate_limit()
+    # rate_limit()
     response = requests.get(url, params=params, headers=get_headers())
 
     if response.status_code == 200:
         dates = sorted(response.json().get('data', []))
+        # print(response.json())
+        # exit()
         instruments[name]['expiry_dates'] = dates
-
     elif response.status_code == 429:
-
         print(f"Rate limited on {name}. Switching token...")
         switch_token()
-
         response = requests.get(url, params=params, headers=get_headers())
-
         if response.status_code == 200:
             dates = sorted(response.json().get('data', []))
             instruments[name]['expiry_dates'] = dates
         else:
             print(f"Error for {name}: {response.status_code} - {response.text}")
-
+            error += 1
     else:
         print(f"Error for {name}: {response.status_code} - {response.text}")
+        error += 1
+
+print("\nError Count:", error)
 
 print()
+
+# 5-Jan-26
+
+instruments["GOLD"]["expiry_dates"] = ["2026-01-05"]
 
 url = 'https://api.upstox.com/v2/expired-instruments/option/contract'
 
 contracts = []
-already_existing = 0
 
 for name, info in instruments.items():
 
     print(f"Fetching contracts for: {name}")
 
+    if name == "ANGEL ONE LIMITED": continue
+
     instrument_key =  info['instrument_key']
+
+    # if 'expriy_dates' not in info: continue
 
     for expiry in info['expiry_dates']:
 
@@ -167,25 +184,12 @@ for name, info in instruments.items():
             'expiry_date' : expiry
         }
 
-        print(f"\tFetching contracts for expiry: {expiry}")
-
         # rate_limit()
         response = requests.get(url, params=params, headers=get_headers())
 
         if response.status_code == 200:
-
             data = response.json()
-
             for contract in data.get('data', []):
-                underlying = contract['underlying_symbol'].lower()
-                symbol = contract['trading_symbol'].replace(" ", "_")
-                expiry_date = contract['expiry']
-                filename = os.path.join(base_output_folder, underlying, expiry_date, f"{symbol}.csv")
-
-                if os.path.exists(filename):
-                    already_existing += 1
-                    continue
-
                 contracts.append({
                     'underlying_symbol': contract['underlying_symbol'],
                     'strike_price': contract['strike_price'],
@@ -194,28 +198,13 @@ for name, info in instruments.items():
                     'trading_symbol': contract['trading_symbol'],
                     'expired_instrument_key': contract['instrument_key']
                 })
-
         elif response.status_code == 429:
-
             print(f"Rate limited on {name} expiry {expiry}. Switching token...")
             switch_token()
-
             response = requests.get(url, params=params, headers=get_headers())
-
             if response.status_code == 200:
-
                 data = response.json()
-
                 for contract in data.get('data', []):
-                    underlying = contract['underlying_symbol'].lower()
-                    symbol = contract['trading_symbol'].replace(" ", "_")
-                    expiry_date = contract['expiry']
-                    filename = os.path.join(base_output_folder, underlying, expiry_date, f"{symbol}.csv")
-
-                    if os.path.exists(filename):
-                        already_existing += 1
-                        continue
-
                     contracts.append({
                         'underlying_symbol': contract['underlying_symbol'],
                         'strike_price': contract['strike_price'],
@@ -224,15 +213,20 @@ for name, info in instruments.items():
                         'trading_symbol': contract['trading_symbol'],
                         'expired_instrument_key': contract['instrument_key']
                     })
-
             else:
                 print(f"Error: {response.status_code} - {response.text}")
-
         else:
             print(f"Error: {response.status_code} - {response.text}")
 
+print()
+
 x = 0
 limit = 25
+
+drive_output = r"G:\My Drive\public\options\stocks"
+local_output = r"data\storage\options\stocks"
+
+# base_output_folder = local_output
 
 print(f"Total Contracts: {len(contracts)}")
 print("Started fetching data...\n")
@@ -241,9 +235,7 @@ start_time = time.time()
 global_start = time.time()
 
 success = 0
-
-
-rate_limited = 0
+already_existing = 0
 
 for contract in contracts:
 
@@ -254,93 +246,65 @@ for contract in contracts:
     to_date = contract['expiry_date']
 
     strike = int(contract['strike_price'])
-    underlying = contract['underlying_symbol'].lower()
+    underlying = contract['underlying_symbol']
     symbol = contract['trading_symbol'].replace(" ", "_")
     expiry = contract['expiry_date']
 
-    output_folder = os.path.join(base_output_folder, underlying, expiry)
-    os.makedirs(output_folder, exist_ok=True)
+    local_output_folder = os.path.join(local_output, underlying, expiry)
+    os.makedirs(local_output_folder, exist_ok=True)
+
+    # drive_output_folder = os.path.join(drive_output, underlying, expiry)
+    # os.makedirs(drive_output_folder, exist_ok=True)
+
+
 
     url = f'https://api.upstox.com/v2/expired-instruments/historical-candle/{instrument_key}/{interval}/{to_date}/{from_date}'
 
-    filename = os.path.join(output_folder, f"{symbol}.csv")
+    filename_local = os.path.join(local_output_folder, f"{symbol}.csv")
+    # filename_drive = os.path.join(drive_output_folder, f"{symbol}.csv")
 
-    if os.path.exists(filename):
+    # if os.path.exists(filename_local) and os.path.exists(filename_drive):
+    if os.path.exists(filename_local):
         already_existing += 1
         continue
 
     # rate_limit()
+    response = requests.get(url, headers=get_headers())
 
-    try:
+    if response.status_code == 200:
+        data = response.json()
+        df = pd.DataFrame(data.get('data', {}).get('candles', []), columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+        df = df.iloc[::-1]
+        df.to_csv(filename_local, index=False)
+        # df.to_csv(filename_drive, index=False)
+        success += 1
 
-        response = None
-
-        try:
-            response = requests.get(url, headers=get_headers())
-        except:
-
-            if response.status_code != 200:
-                print(response.status_code)
-
-            continue
-
+    elif response.status_code == 429:
+        print(f"Rate limited on {symbol}. Switching token...")
+        switch_token()
+        response = requests.get(url, headers=get_headers())
+        
         if response.status_code == 200:
-
             data = response.json()
-
-            df = pd.DataFrame(
-                data.get('data', {}).get('candles', []),
-                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi']
-            )
-
+            df = pd.DataFrame(data.get('data', {}).get('candles', []), columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
             df = df.iloc[::-1]
-            df.to_csv(filename, index=False)
-            
+            df.to_csv(filename_local, index=False)
+            # df.to_csv(filename_drive, index=False)
             success += 1
-
-        elif response.status_code == 429:
-
-            print(f"Rate limited on {symbol}. Switching token...")
-            switch_token()
-
-            response = requests.get(url, headers=get_headers())
-
-            if response.status_code == 200:
-
-                data = response.json()
-
-                df = pd.DataFrame(
-                    data.get('data', {}).get('candles', []),
-                    columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi']
-                )
-
-                df = df.iloc[::-1]
-                df.to_csv(filename, index=False)
-
-                success += 1
-
-            elif response.status_code == 500:
-                print(f"Expiry - {expiry}\t\t Contract - {contract['trading_symbol']}")
-
-            else:
-                print(f"Error {response.status_code} for {symbol}")
-
+        elif response.status_code == 500:
+            print(f"Server error - Expiry: {expiry}, Contract: {contract['trading_symbol']}")
         else:
+            print(f"Error {response.status_code} for {symbol}")
+    
+    elif response.status_code == 500:
+        print(f"Server error - Expiry: {expiry}, Contract: {contract['trading_symbol']}")
+    
+    else:
+        print(f"Error {response.status_code} for {symbol}")
 
-            response_code = response.status_code
-
-            if response_code == 500:
-                print(f"Expiry - {expiry}\t\t Contract - {contract['trading_symbol']}")
-
-            else:
-                print(f"Error {response_code} for {symbol}")
-
-        if (success % 250 == 0 and success != 0):
-            print(f"\nFetched {success} contracts so far...")
-            # time.sleep(2)
-
-    except:
-        pass
+    if (success % 250 == 0 and success != 0):
+        print(f"\nFetched {success} contracts so far...")
+        time.sleep(2)
 
     x += 1
 

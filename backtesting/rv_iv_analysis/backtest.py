@@ -9,12 +9,26 @@ from multiprocessing import Pool, cpu_count
 # CONFIG VARIABLES
 # ==============================
 
-SPOT_DATA_PATH = r"data\storage\raw\index\NIFTY.csv"
-OPTIONS_DATA_PATH = r"data\storage\options\index\nifty"
+SPOT_DATA_PATH = r"D:\github\algorithmic-trading\data\storage\index\NIFTY.csv"
+OPTIONS_DATA_PATH = r"D:\github\algorithmic-trading\data\storage\options\index\nifty"
 ROUND_STRIKE = 50
 NUM_PROCESSES = cpu_count() - 2
-RESULTS_BASE_PATH = r"backtesting\rv_iv_analysis\results"
+RESULTS_BASE_PATH = r"D:\github\algorithmic-trading\backtesting\rv_iv_analysis\results"
 
+
+# ==============================
+# GLOBAL CACHES
+# ==============================
+
+SPOT_DF = None
+SPOT_LOOKUP = None
+
+OPTION_DATA_CACHE = {}
+OPTION_FILE_CACHE = {}
+
+EXPIRY_DAY_CACHE = {}
+
+TIME_WINDOW_CACHE = {}
 
 # ==============================
 # HELPERS
@@ -25,168 +39,524 @@ def round_to_step(value, step):
 
 
 def get_expiry_list(options_path):
-    expiries = sorted(os.listdir(options_path))
-    return expiries
+    return sorted(os.listdir(options_path))
 
 
 def get_next_day_of_previous_expiry(expiries, index):
+
     if index == 0:
         return None
 
-    prev_expiry = datetime.strptime(expiries[index - 1], "%Y-%m-%d")
+    prev_expiry = datetime.strptime(
+        expiries[index - 1],
+        "%Y-%m-%d"
+    )
+
     return prev_expiry + timedelta(days=1)
 
 
-def compute_weighted_price(row):
-    # You can change this logic
-    return (row['Open'] + row['High'] + row['Low'] + row['Close']) / 4
+def load_spot_data(spot_path):
+
+    global SPOT_DF
+    global SPOT_LOOKUP
+
+    if SPOT_DF is not None:
+        return SPOT_DF
+
+    print("Loading spot data...")
+
+    df = pd.read_csv(
+        spot_path,
+        parse_dates=["Date"]
+    )
+
+    df["DateOnly"] = df["Date"].dt.date
+
+    df["ltp"] = (
+        df["Open"]
+        + df["High"]
+        + df["Low"]
+        + df["Close"]
+    ) / 4
+
+    SPOT_DF = df
+
+    SPOT_LOOKUP = {
+        date: group
+        for date, group in df.groupby("DateOnly")
+    }
+
+    print(
+        f"Spot data loaded "
+        f"({len(df):,} rows)"
+    )
+
+    return SPOT_DF
 
 
-def load_spot_data(spot_path, cache=None):
-    if cache is not None and 'spot_data' in cache:
-        return cache['spot_data']
-    
-    df = pd.read_csv(spot_path, parse_dates=['Date'])
-    df['DateOnly'] = df['Date'].dt.date
-    
-    if cache is not None:
-        cache['spot_data'] = df
-    
-    return df
+def get_day_data(trade_day):
 
+    global SPOT_LOOKUP
 
-def load_option_file(expiry_folder, strike, option_type, cache=None):
-    cache_key = f"{expiry_folder}_{strike}_{option_type}"
-    
-    if cache is not None and cache_key in cache:
-        return cache[cache_key]
-    
-    pattern = f"NIFTY_{strike}_{option_type}_*.csv"
-    files = glob(os.path.join(expiry_folder, pattern))
-    if not files:
-        if cache is not None:
-            cache[cache_key] = None
+    if SPOT_LOOKUP is None:
         return None
 
-    df = pd.read_csv(files[0], parse_dates=['timestamp'])
-    
-    if cache is not None:
-        cache[cache_key] = df
-    
-    return df
+    return SPOT_LOOKUP.get(trade_day)
 
 
-def get_price_at_time(option_df, timestamp):
-    row = option_df[option_df['timestamp'] == timestamp]
-    if row.empty:
+from multiprocessing import Pool
+
+count = 0
+
+def load_expiry_data(args):
+    """
+    Worker function for loading a single expiry folder.
+    """
+
+    expiry, expiry_folder = args
+
+    expiry_cache = {}
+    loaded_count = 0
+
+    csv_files = glob(
+        os.path.join(
+            expiry_folder,
+            "*.csv"
+        )
+    )
+
+    print(
+        f"Loading {expiry} "
+        f"({len(csv_files)} files)"
+    )
+
+    for file_path in csv_files:
+
+        try:
+
+            filename = os.path.basename(
+                file_path
+            )
+
+            parts = filename.replace(
+                ".csv",
+                ""
+            ).split("_")
+
+            if len(parts) < 3:
+                continue
+
+            strike = int(parts[1])
+            option_type = parts[2]
+
+            # Load only required columns
+            df = pd.read_csv(
+                file_path,
+                usecols=[
+                    "timestamp",
+                    "close"
+                ],
+                parse_dates=[
+                    "timestamp"
+                ]
+            )
+
+            df.set_index(
+                "timestamp",
+                inplace=True,
+                drop=False
+            )
+
+            expiry_cache[
+                (strike, option_type)
+            ] = df
+
+            loaded_count += 1
+
+        except Exception as e:
+
+            print(
+                f"Failed loading "
+                f"{file_path}"
+            )
+
+            print(e)
+
+    # count += 1
+
+    # if (count % 100) == 0:
+    #     print(F"Loaded {count} files into cache")
+
+    return (
+        expiry,
+        expiry_cache,
+        loaded_count
+    )
+
+
+def preload_option_files(
+    options_path,
+    expiry_limit=None
+):
+
+    global OPTION_DATA_CACHE
+
+    if OPTION_DATA_CACHE:
+        return
+
+    expiries = get_expiry_list(
+        options_path
+    )
+
+    if expiry_limit:
+        expiries = expiries[
+            -expiry_limit:
+        ]
+
+    print(
+        f"\nPreloading option files "
+        f"for {len(expiries)} expiries "
+        f"using {NUM_PROCESSES} processes...\n"
+    )
+
+    args_list = []
+
+    for expiry in expiries:
+
+        expiry_folder = os.path.join(
+            options_path,
+            expiry
+        )
+
+        args_list.append(
+            (
+                expiry,
+                expiry_folder
+            )
+        )
+
+    total_loaded = 0
+
+    with Pool(
+        processes=NUM_PROCESSES
+    ) as pool:
+
+        results = pool.map(
+            load_expiry_data,
+            args_list
+        )
+
+    for (
+        expiry,
+        expiry_cache,
+        loaded_count
+    ) in results:
+
+        OPTION_DATA_CACHE[
+            expiry
+        ] = expiry_cache
+
+        total_loaded += loaded_count
+
+    print(
+        f"\nLoaded "
+        f"{total_loaded:,} "
+        f"option files into memory"
+    )
+
+    print(
+        f"Cached "
+        f"{len(OPTION_DATA_CACHE):,} "
+        f"expiries\n"
+    )
+
+
+def load_option_file(
+    expiry,
+    strike,
+    option_type
+):
+
+    expiry_cache = OPTION_DATA_CACHE.get(
+        expiry
+    )
+
+    if expiry_cache is None:
         return None
-    return row.iloc[0]['close']
+
+    return expiry_cache.get(
+        (strike, option_type)
+    )
 
 
-def track_trade(option_df_ce, option_df_pe, entry_time, ce_target, pe_target):
-    ce_filtered = option_df_ce[option_df_ce['timestamp'] >= entry_time][['timestamp', 'close']].values
-    pe_filtered = option_df_pe[option_df_pe['timestamp'] >= entry_time][['timestamp', 'close']].values
+def get_price_at_time(
+    option_df,
+    timestamp
+):
+
+    try:
+        return option_df.at[
+            timestamp,
+            "close"
+        ]
+    except KeyError:
+        return None
     
-    ce_exit_idx = None
-    pe_exit_idx = None
-    
-    # Vectorized search for target hits
-    ce_hits = ce_filtered[:, 1] >= ce_target
-    pe_hits = pe_filtered[:, 1] >= pe_target
-    
+def get_window_times(
+    start_str,
+    finish_str
+):
+
+    key = (
+        start_str,
+        finish_str
+    )
+
+    if key not in TIME_WINDOW_CACHE:
+
+        TIME_WINDOW_CACHE[key] = (
+            datetime.strptime(
+                start_str,
+                "%H:%M"
+            ).time(),
+
+            datetime.strptime(
+                finish_str,
+                "%H:%M"
+            ).time()
+        )
+
+    return TIME_WINDOW_CACHE[key]
+
+
+def track_trade(
+    option_df_ce,
+    option_df_pe,
+    entry_time,
+    ce_target,
+    pe_target
+):
+
+    ce_filtered = option_df_ce.loc[
+        entry_time:
+    ][["timestamp", "close"]].values
+
+    pe_filtered = option_df_pe.loc[
+        entry_time:
+    ][["timestamp", "close"]].values
+
+    ce_hits = (
+        ce_filtered[:, 1]
+        >= ce_target
+    )
+
+    pe_hits = (
+        pe_filtered[:, 1]
+        >= pe_target
+    )
+
     if ce_hits.any():
-        ce_exit_idx = ce_hits.argmax()
-        ce_exit_time = ce_filtered[ce_exit_idx, 0]
-        ce_sell_price = ce_filtered[ce_exit_idx, 1]
+
+        idx = ce_hits.argmax()
+
+        ce_exit_time = ce_filtered[idx, 0]
+        ce_sell_price = ce_filtered[idx, 1]
         ce_target_hit = True
+
     else:
+
         ce_exit_time = ce_filtered[-1, 0]
         ce_sell_price = ce_filtered[-1, 1]
         ce_target_hit = False
-    
+
     if pe_hits.any():
-        pe_exit_idx = pe_hits.argmax()
-        pe_exit_time = pe_filtered[pe_exit_idx, 0]
-        pe_sell_price = pe_filtered[pe_exit_idx, 1]
+
+        idx = pe_hits.argmax()
+
+        pe_exit_time = pe_filtered[idx, 0]
+        pe_sell_price = pe_filtered[idx, 1]
         pe_target_hit = True
+
     else:
+
         pe_exit_time = pe_filtered[-1, 0]
         pe_sell_price = pe_filtered[-1, 1]
         pe_target_hit = False
-    
-    return (ce_exit_time, ce_sell_price, ce_target_hit,
-            pe_exit_time, pe_sell_price, pe_target_hit)
+
+    return (
+        ce_exit_time,
+        ce_sell_price,
+        ce_target_hit,
+        pe_exit_time,
+        pe_sell_price,
+        pe_target_hit
+    )
 
 
 def process_expiry(args):
-    """Process a single expiry - designed for multiprocessing"""
-    expiry, i, expiries, config, cache = args
 
-    # print(f"Started processing: {expiry}")
-    
-    spot_df = load_spot_data(config['spot_path'], cache)
-    
-    expiry_folder = os.path.join(config['options_path'], expiry)
-    expiry_date = datetime.strptime(expiry, "%Y-%m-%d")
-    expiry_day = expiry_date.strftime("%A")
-    
-    expiry_trades = 0
-    expiry_profitable = 0
+    expiry, i, expiries, config = args
+
+    # expiry_day = EXPIRY_DAY_CACHE[
+    #     expiry
+    # ]
+
+    expiry_date = datetime.strptime(
+        expiry,
+        "%Y-%m-%d"
+    )
+
+    expiry_day = expiry_date.strftime(
+        "%A"
+    )
+
     trades = []
     analysis_data = []
 
-    next_day = get_next_day_of_previous_expiry(expiries, i)
+    expiry_trades = 0
+    expiry_profitable = 0
+
+    next_day = get_next_day_of_previous_expiry(
+        expiries,
+        i
+    )
+
     if next_day is None:
-        return trades, analysis_data, expiry_trades, expiry_profitable
+        return (
+            trades,
+            analysis_data,
+            expiry_trades,
+            expiry_profitable
+        )
 
     trade_day = next_day.date()
-    day_data = spot_df[spot_df['DateOnly'] == trade_day]
-    
-    if day_data.empty:
-        return trades, analysis_data, expiry_trades, expiry_profitable
-    
-    # Pre-parse time window once
-    start_time = datetime.strptime(config['window_start'], "%H:%M").time()
-    finish_time = datetime.strptime(config['window_finish'], "%H:%M").time()
 
-    for _, row in day_data.iterrows():
-        timestamp = row['Date']
+    day_data = get_day_data(trade_day)
+
+    if day_data is None:
+        return (
+            trades,
+            analysis_data,
+            expiry_trades,
+            expiry_profitable
+        )
+
+    start_time, finish_time = (
+        get_window_times(
+            config["window_start"],
+            config["window_finish"]
+        )
+    )
+
+    strike_distance_pct = config[
+        "strike_distance_pct"
+    ]
+
+    max_total_premium_pct = config[
+        "max_total_premium_pct"
+    ]
+
+    target_multiplier = config[
+        "target_multiplier"
+    ]
+
+    round_strike = config[
+        "round_strike"
+    ]
+
+    limit_one_trade = config[
+        "limit_one_trade"
+    ]
+
+    for row in day_data.itertuples(index=False):
+
+        timestamp = row.Date
+
         trade_time = timestamp.time()
-        
-        if not (start_time <= trade_time <= finish_time):
+
+        if trade_time < start_time:
             continue
-        
-        current_day = timestamp.strftime("%A")
-        ltp = compute_weighted_price(row)
 
-        ce_strike = round_to_step(ltp * (1 + config['strike_distance_pct']), config['round_strike'])
-        pe_strike = round_to_step(ltp * (1 - config['strike_distance_pct']), config['round_strike'])
+        if trade_time > finish_time:
+            continue
 
-        ce_df = load_option_file(expiry_folder, ce_strike, "CE", cache)
-        pe_df = load_option_file(expiry_folder, pe_strike, "PE", cache)
+        ltp = row.ltp
+
+        ce_strike = round_to_step(
+            ltp * (
+                1 + strike_distance_pct
+            ),
+            round_strike
+        )
+
+        pe_strike = round_to_step(
+            ltp * (
+                1 - strike_distance_pct
+            ),
+            round_strike
+        )
+
+        ce_df = load_option_file(
+            expiry,
+            ce_strike,
+            "CE"
+        )
+
+        pe_df = load_option_file(
+            expiry,
+            pe_strike,
+            "PE"
+        )
 
         if ce_df is None or pe_df is None:
             continue
 
-        ce_price = get_price_at_time(ce_df, timestamp)
-        pe_price = get_price_at_time(pe_df, timestamp)
+        ce_price = get_price_at_time(
+            ce_df,
+            timestamp
+        )
 
-        if ce_price is None or pe_price is None:
+        if ce_price is None:
+            print(
+                "CE timestamp miss:",
+                timestamp,
+                ce_strike
+            )
             continue
 
-        total_cost = ce_price + pe_price
-        cost_pct = (total_cost / ltp) * 100
+        pe_price = get_price_at_time(
+            pe_df,
+            timestamp
+        )
+
+        if ce_price is None:
+            continue
+
+        if pe_price is None:
+            continue
+
+        total_cost = (
+            ce_price + pe_price
+        )
+
+        cost_pct = (
+            total_cost / ltp
+        ) * 100
+
+        current_day = timestamp.strftime(
+            "%A"
+        )
 
         analysis_data.append({
             "timestamp": timestamp,
             "expiry": expiry,
             "expiry_day": expiry_day,
             "current_day": current_day,
-            "open": row['Open'],
-            "high": row['High'],
-            "low": row['Low'],
-            "close": row['Close'],
-            "volume": row['Volume'],
+            "open": row.Open,
+            "high": row.High,
+            "low": row.Low,
+            "close": row.Close,
+            "volume": row.Volume,
             "ltp": ltp,
             "pe_strike": pe_strike,
             "ce_strike": ce_strike,
@@ -196,82 +566,117 @@ def process_expiry(args):
             "cost_pct": cost_pct
         })
 
-        if total_cost <= ltp * config['max_total_premium_pct']:
-            target = total_cost * config['target_multiplier']
-            ce_target = target
-            pe_target = target
+        if total_cost > (
+            ltp *
+            max_total_premium_pct
+        ):
+            continue
 
-            ce_exit_time, ce_sell_price, ce_target_hit, pe_exit_time, pe_sell_price, pe_target_hit = track_trade(
-                ce_df, pe_df, timestamp, ce_target, pe_target
-            )
-            
-            expiry_trades += 1
-            if ce_target_hit or pe_target_hit:
-                expiry_profitable += 1
+        target = (
+            total_cost *
+            target_multiplier
+        )
 
-            ce_pnl = ce_sell_price - ce_price
-            ce_pnl_pct = (ce_pnl / ce_price) * 100
+        (
+            ce_exit_time,
+            ce_sell_price,
+            ce_target_hit,
+            pe_exit_time,
+            pe_sell_price,
+            pe_target_hit
+        ) = track_trade(
+            ce_df,
+            pe_df,
+            timestamp,
+            target,
+            target
+        )
 
-            trades.append({
-                "entry_time": timestamp,
-                "timestamp": timestamp,
-                "expiry": expiry,
-                "expiry_day": expiry_day,
-                "current_day": current_day,
-                "open": row['Open'],
-                "high": row['High'],
-                "low": row['Low'],
-                "close": row['Close'],
-                "volume": row['Volume'],
-                "ltp": ltp,
-                "option_type": "CE",
-                "strike": ce_strike,
-                "buy_price": ce_price,
-                "target_price": ce_target,
-                "exit_time": ce_exit_time,
-                "sell_price": ce_sell_price,
-                "target_hit": ce_target_hit,
-                "pnl": ce_pnl,
-                "pnl_pct": ce_pnl_pct
-            })
-            
-            pe_pnl = pe_sell_price - pe_price
-            pe_pnl_pct = (pe_pnl / pe_price) * 100
+        expiry_trades += 1
 
-            trades.append({
-                "entry_time": timestamp,
-                "timestamp": timestamp,
-                "expiry": expiry,
-                "expiry_day": expiry_day,
-                "current_day": current_day,
-                "open": row['Open'],
-                "high": row['High'],
-                "low": row['Low'],
-                "close": row['Close'],
-                "volume": row['Volume'],
-                "ltp": ltp,
-                "option_type": "PE",
-                "strike": pe_strike,
-                "buy_price": pe_price,
-                "target_price": pe_target,
-                "exit_time": pe_exit_time,
-                "sell_price": pe_sell_price,
-                "target_hit": pe_target_hit,
-                "pnl": pe_pnl,
-                "pnl_pct": pe_pnl_pct
-            })
-            
-            if config['limit_one_trade']:
-                break
-    
-    return trades, analysis_data, expiry_trades, expiry_profitable
+        if (
+            ce_target_hit
+            or
+            pe_target_hit
+        ):
+            expiry_profitable += 1
+
+        ce_pnl = (
+            ce_sell_price -
+            ce_price
+        )
+
+        pe_pnl = (
+            pe_sell_price -
+            pe_price
+        )
+
+        trades.append({
+            "entry_time": timestamp,
+            "timestamp": timestamp,
+            "expiry": expiry,
+            "expiry_day": expiry_day,
+            "current_day": current_day,
+            "open": row.Open,
+            "high": row.High,
+            "low": row.Low,
+            "close": row.Close,
+            "volume": row.Volume,
+            "ltp": ltp,
+            "option_type": "CE",
+            "strike": ce_strike,
+            "buy_price": ce_price,
+            "target_price": target,
+            "exit_time": ce_exit_time,
+            "sell_price": ce_sell_price,
+            "target_hit": ce_target_hit,
+            "pnl": ce_pnl,
+            "pnl_pct": (
+                ce_pnl / ce_price
+            ) * 100
+        })
+
+        trades.append({
+            "entry_time": timestamp,
+            "timestamp": timestamp,
+            "expiry": expiry,
+            "expiry_day": expiry_day,
+            "current_day": current_day,
+            "open": row.Open,
+            "high": row.High,
+            "low": row.Low,
+            "close": row.Close,
+            "volume": row.Volume,
+            "ltp": ltp,
+            "option_type": "PE",
+            "strike": pe_strike,
+            "buy_price": pe_price,
+            "target_price": target,
+            "exit_time": pe_exit_time,
+            "sell_price": pe_sell_price,
+            "target_hit": pe_target_hit,
+            "pnl": pe_pnl,
+            "pnl_pct": (
+                pe_pnl / pe_price
+            ) * 100
+        })
+
+        if limit_one_trade:
+            break
+
+    return (
+        trades,
+        analysis_data,
+        expiry_trades,
+        expiry_profitable
+    )
 
 
 # ==============================
 # MAIN ENGINE
 # ==============================
 
-def process_expiries(config, cache=None):
+def process_expiries(config):
 
     start_time = datetime.now()
     start_timestamp = start_time.strftime("%Y%m%d_%H%M%S")
@@ -298,11 +703,16 @@ def process_expiries(config, cache=None):
     print(f"Processing {len(expiries)} expiries using {config['num_processes']} processes...\n")
     
     # Prepare arguments for multiprocessing
-    args_list = [(expiry, i, expiries, config, cache) for i, expiry in enumerate(expiries)]
-    
-    # Process expiries in parallel
-    with Pool(processes=config['num_processes']) as pool:
-        results = pool.map(process_expiry, args_list)
+    args_list = [(expiry, i, expiries, config) for i, expiry in enumerate(expiries)]
+
+    # Process expiries sequentially
+    results = []
+
+    for args in args_list:
+
+        results.append(
+            process_expiry(args)
+        )
     
     # Aggregate results (optimized)
     for i, (expiry_trades_list, expiry_analysis, expiry_trade_count, expiry_profit_count) in enumerate(results):
@@ -438,16 +848,38 @@ def process_expiries(config, cache=None):
 
 
 def main():
+
+    expiries = get_expiry_list(
+        OPTIONS_DATA_PATH
+    )
+
+    for expiry in expiries:
+
+        expiry_date = datetime.strptime(
+            expiry,
+            "%Y-%m-%d"
+        )
+
+        EXPIRY_DAY_CACHE[expiry] = (
+            expiry_date.strftime("%A")
+        )
+
     from itertools import product
-    from multiprocessing import Manager
     
     # Config arrays for grid testing
     STRIKE_DISTANCE_PCT_ARRAY = [0.0025, 0.00375, 0.005, 0.0075, 0.01]
     MAX_TOTAL_PREMIUM_PCT_ARRAY = [0.0050, 0.0055, 0.0065, 0.0075]
     TARGET_MULTIPLIER_ARRAY = [1.5, 2, 2.5, 3]
-    TRADING_WINDOW_DURATION_MINUTES = 30
-    EXPIRY_LIMIT = 10000
-    LIMIT_ONE_TRADE_PER_EXPIRY = 0
+    TRADING_WINDOW_DURATION_MINUTES = 60
+    EXPIRY_LIMIT = 100
+    LIMIT_ONE_TRADE_PER_EXPIRY = 1
+
+    # STRIKE_DISTANCE_PCT_ARRAY = [0.005]
+    # MAX_TOTAL_PREMIUM_PCT_ARRAY = [0.0065]
+    # TARGET_MULTIPLIER_ARRAY = [2.5, 3]
+    # TRADING_WINDOW_DURATION_MINUTES = 30
+    # EXPIRY_LIMIT = 10000
+    # LIMIT_ONE_TRADE_PER_EXPIRY = 1
     
     # Generate trading window intervals
     market_start = datetime.strptime("09:30", "%H:%M")
@@ -479,11 +911,27 @@ def main():
         existing_configs = pd.DataFrame()
     
     print(f"Total combinations to test: {len(combinations)}\n")
-    print("Loading and caching all data files...\n")
+    print("Loading spot and option data...\n")
     
-    # Create shared cache using Manager for multiprocessing
-    manager = Manager()
-    cache = manager.dict()
+    load_spot_data(
+        SPOT_DATA_PATH
+    )
+
+    preload_option_files(
+        OPTIONS_DATA_PATH,
+        EXPIRY_LIMIT
+    )
+
+    total_option_files = sum(
+        len(v)
+        for v in OPTION_DATA_CACHE.values()
+    )
+
+    print(
+        f"Cached "
+        f"{total_option_files:,} "
+        f"option files"
+    )
     
     processed_count = 0
     
@@ -529,7 +977,7 @@ def main():
             'results_base_path': RESULTS_BASE_PATH
         }
         
-        result_metrics = process_expiries(config, cache)
+        result_metrics = process_expiries(config)
         
         config_end_time = datetime.now()
         config_duration = (config_end_time - config_start_time).total_seconds()
@@ -571,7 +1019,7 @@ def main():
             print(f"\n{'='*60}")
             print(f"Processed {processed_count} combinations. Sleeping for 3 minutes...")
             print(f"{'='*60}\n")
-            time.sleep(180)
+            # time.sleep(180)
 
 
 if __name__ == "__main__":

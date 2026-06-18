@@ -91,6 +91,11 @@ def index_options():
 
     base_folder = r"data\storage\options\index"
     base_folder = r"D:\github\algorithmic-trading\data\storage\options\index"
+
+    # base_folder = r"D:\github\algorithmic-trading\data\storage\options\index\2014-2024"
+
+    # output_folder = "G:\\My Drive\\public\\paid\\options\\2014-2024"
+
     output_folder = "G:\\My Drive\\public\\paid\\data\\options\\index"
 
     print("\nCopying index options data to drive...")
@@ -140,10 +145,10 @@ def implied_volatility():
 
 def main():
 
-    # index_options()
+    index_options()
     # stock_options()
     # equity()
-    fundamentals()
+    # fundamentals()
     # implied_volatility()
 
     return

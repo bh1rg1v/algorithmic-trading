@@ -1,5 +1,7 @@
 """Equity data fetcher using Kite API."""
 import os
+from dotenv import load_dotenv
+
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -8,10 +10,12 @@ from datetime import datetime, timedelta
 import pandas as pd
 import requests
 
+load_dotenv()
+
 # Configuration
 
 # Kite session token - we have update this for every session
-ENCTOKEN = ("8RwRDlGprV9FTb4Plccp5FPHHyJzO6Wd8XPOm1Ah2LfusnQEwU+tTsRtUW1RvKBPbTW7l4N+PHI7DNvMPKbE4AQBg5M56MSWWplRfP9KjpB+WQlrhIhxnA==")
+ENCTOKEN = os.getenv("ZERODHA_SESSION_TOKEN")
 START_DATE = datetime(2014, 1, 1)  # Data start date
 END_DATE = datetime.today()        # Data end date
 TIMEFRAME = "minute"                  # Data timeframe - Available: minute, 5minute, 30minute, 60minute, 3hour, day, etc.

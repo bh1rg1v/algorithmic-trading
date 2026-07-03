@@ -55,3 +55,5 @@ broker/upstox/instruments/complete.json
 
 data/storage/2014-2024
 data/storage/index
+
+data/cleaning/ohlcv_validation_report.csv

@@ -58,17 +58,19 @@ def copy_base_to_output(base_folder, output_folder, copy_everything=False):
                 if copy_everything:
                     shutil.copy2(source_file, destination_file)
                     # print(f"Replaced: {destination_file}")
+                    print(f"Replaced: {destination_file}")
                     replaced += 1
 
                 else:
                     # print(f"Skipped: {destination_file}")
+                    print(f"Skipped: {destination_file}")
                     skipped += 1
                     pass
 
             else:
                 # Copy new file
                 shutil.copy2(source_file, destination_file)
-                # print(f"Copied: {destination_file}")
+                print(f"Copied: {destination_file}")
                 copied += 1
 
             if copied % 500 == 0 and copied > 0:
@@ -115,11 +117,11 @@ def equity():
 
     # copying equity data to drive
 
-    base_folder = r"D:\github\algorithmic-trading\data\storage\equity"
-    output_folder = "G:\\My Drive\\public\\paid\\data\\equity"
+    base_folder = r"D:\github\algorithmic-trading\data\storage\equity\minute"
+    output_folder = "G:\\My Drive\\public\\paid\\data\\equity\minute"
 
     print("\nCopying equity data to drive...")
-    copy_base_to_output(base_folder, output_folder, copy_everything=False)
+    copy_base_to_output(base_folder, output_folder, copy_everything=True)
 
 def fundamentals():
 
@@ -145,9 +147,9 @@ def implied_volatility():
 
 def main():
 
-    index_options()
+    # index_options()
     # stock_options()
-    # equity()
+    equity()
     # fundamentals()
     # implied_volatility()
 

@@ -57,3 +57,7 @@ data/storage/2014-2024
 data/storage/index
 
 data/cleaning/ohlcv_validation_report.csv
+
+/output
+/Missing_Data
+/New_folder

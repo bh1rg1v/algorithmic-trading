@@ -1,8 +1,9 @@
 ## Most Useful Things (in this repo)
 
 ### Historical Data Links
-  - data\storage\raw\equity\README.md     [[Link](https://www.jiocloud.com/l/?u=nJeSTwHnU5GtuaLD7aYu97WZUO0E-HJCtLqWE-q4gD3VbsX1gBXZVMyTO5OGzLd-hkW)]
-  - data\storage\raw\options\README.md    [[Link](https://drive.google.com/drive/folders/1QM_NSWSF0ny5fv9BxPXmDxG6fh5BftRY?usp=sharing)]
+  - data\storage\raw\options\README.md    [[Link](https://bit.ly/free-options-data)]
+  - 180GB Paid Dataset: Index Options (from 2014), Stock Options, Equity, Fundamentals, Implied Volatility [[Link](https://bit.ly/paid-options-data)]
+  - Paid dataset will be updated every month.
 
 
 the above README files contains the details relevant to the respective datasets.

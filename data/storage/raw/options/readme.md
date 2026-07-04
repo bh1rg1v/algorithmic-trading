@@ -28,8 +28,9 @@ Each row represents one 1-minute candle.
 ---
 
 ## Data Access
-
-[Dataset Link](https://drive.google.com/drive/folders/1QM_NSWSF0ny5fv9BxPXmDxG6fh5BftRY?usp=sharing)
+ 
+[Free Dataset Link, request access](https://bit.ly/free-options-data) (Request "View" Access to get the data)
+[Paid Dataset Link, updated every month](https://bit.ly/paid-options-data)
 
 Further updates to the link will be done here only.
 
